@@ -267,7 +267,7 @@ private theorem hasDerivAt_t_ouSemigroupFin_pos_aux {f : (Fin n → ℝ) → ℝ
       have h_eval : Integrable (fun y : Fin n → ℝ => |y i|) (γFin n) := integrable_abs_eval_γFin i
       simpa [mul_add, add_comm, add_left_comm, add_assoc, mul_comm, mul_left_comm, mul_assoc]
         using! (integrable_const (M * |x i|)).add (h_eval.const_mul (M * (1 / B)))
-    refine integrable_finset_sum (s := Finset.univ)
+    refine integrable_finsetSum (s := Finset.univ)
       (f := fun i (y : Fin n → ℝ) => M * (|x i| + (1 / B) * |y i|)) ?_
     intro i hi
     exact hterm i
@@ -367,7 +367,7 @@ private theorem hasDerivAt_t_ouSemigroupFin_pos_aux {f : (Fin n → ℝ) → ℝ
           ((-Real.exp (-t₀) * x i
             + (Real.exp (-2 * t₀) / Real.sqrt (1 - Real.exp (-2 * t₀))) * y i) *
             partialDeriv i f (ouShiftFin t₀ x y)) ∂γFin n from rfl]
-    rw [integral_finset_sum]
+    rw [integral_finsetSum]
     · refine Finset.sum_congr rfl ?_
       intro i hi
       have hshift : Continuous (fun y : Fin n → ℝ => ouShiftFin t₀ x y) := by
@@ -528,7 +528,7 @@ private theorem hasDerivWithinAt_t_ouSemigroupFin_zero_core {f : (Fin n → ℝ)
         Tendsto (fun t : ℝ =>
           ∑ i : Fin n, Real.exp (-2 * t) * ouSemigroupFin t (secondPartial i f) x)
           (𝓝[Set.Ioi 0] 0) (𝓝 (∑ i : Fin n, secondPartial i f x)) := by
-      refine tendsto_finset_sum Finset.univ (fun i _ => ?_)
+      refine tendsto_finsetSum Finset.univ (fun i _ => ?_)
       have h_exp : Tendsto (fun t : ℝ => Real.exp (-2 * t)) (𝓝[Set.Ioi 0] 0) (𝓝 1) := by
         have hcont : Continuous (fun t : ℝ => Real.exp (-2 * t)) := by
           continuity
@@ -547,7 +547,7 @@ private theorem hasDerivWithinAt_t_ouSemigroupFin_zero_core {f : (Fin n → ℝ)
         Tendsto (fun t : ℝ =>
           ∑ i : Fin n, x i * (Real.exp (-t) * ouSemigroupFin t (partialDeriv i f) x))
           (𝓝[Set.Ioi 0] 0) (𝓝 (∑ i : Fin n, x i * partialDeriv i f x)) := by
-      refine tendsto_finset_sum Finset.univ (fun i _ => ?_)
+      refine tendsto_finsetSum Finset.univ (fun i _ => ?_)
       have h_exp : Tendsto (fun t : ℝ => Real.exp (-t)) (𝓝[Set.Ioi 0] 0) (𝓝 1) := by
         have hcont : Continuous (fun t : ℝ => Real.exp (-t)) := by
           continuity
@@ -760,7 +760,7 @@ private theorem norm_diffQuot_ouSemigroupFin_le_of_coreBound {f : (Fin n → ℝ
     intro s hs
     simpa [φ] using hasDerivAt_t_ouSemigroupFin_pos_aux hf x hs.1
   have hφ_cont : Continuous φ := by
-    refine continuous_finset_sum _ ?_
+    refine continuous_finsetSum _ ?_
     intro i hi
     have hsec :
         Continuous (fun s : ℝ => Real.exp (-2 * s) * ouSemigroupFin s (secondPartial i f) x) := by
@@ -987,7 +987,7 @@ theorem gaussianFin_diffQuot_tendsto_Lp {n : ℕ}
     simpa [Function.comp, Real.norm_eq_abs] using hcomp.norm
   have hsumabs_mem : MemLp (fun x : Fin n → ℝ => ∑ i : Fin n, |x i|) 2 μ := by
     convert
-      (memLp_finset_sum' (s := Finset.univ)
+      (memLp_finsetSum' (s := Finset.univ)
         (f := fun i (x : Fin n → ℝ) => |x i|)
         (fun i _ => hcoord i)) using 1
     ext x

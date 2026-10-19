@@ -256,7 +256,7 @@ lemma tendsto_hermiteFun_mul_pdf_atTop (n : ℕ) :
           ((hermite n).coeff i : ℝ) * (y ^ i * pdf y))
       atTop (𝓝 (∑ i ∈ Finset.range ((hermite n).natDegree + 1),
           ((hermite n).coeff i : ℝ) * (0 : ℝ))) := by
-    refine tendsto_finset_sum _ (fun i _ => ?_)
+    refine tendsto_finsetSum _ (fun i _ => ?_)
     exact tendsto_const_nhds.mul (tendsto_pow_mul_pdf_atTop i)
   have hzero : (∑ i ∈ Finset.range ((hermite n).natDegree + 1),
       ((hermite n).coeff i : ℝ) * (0 : ℝ)) = 0 := by simp
@@ -274,7 +274,7 @@ lemma tendsto_hermiteFun_mul_pdf_atBot (n : ℕ) :
           ((hermite n).coeff i : ℝ) * (y ^ i * pdf y))
       atBot (𝓝 (∑ i ∈ Finset.range ((hermite n).natDegree + 1),
           ((hermite n).coeff i : ℝ) * (0 : ℝ))) := by
-    refine tendsto_finset_sum _ (fun i _ => ?_)
+    refine tendsto_finsetSum _ (fun i _ => ?_)
     exact tendsto_const_nhds.mul (tendsto_pow_mul_pdf_atBot i)
   have hzero : (∑ i ∈ Finset.range ((hermite n).natDegree + 1),
       ((hermite n).coeff i : ℝ) * (0 : ℝ)) = 0 := by simp
@@ -312,7 +312,7 @@ lemma integrable_hermiteFun_gamma (n : ℕ) : Integrable (hermiteFun n) γ := by
         ((hermite n).coeff i : ℝ) * y ^ i := by
     ext y; exact hermiteFun_eq_sum n y
   rw [h_rewrite]
-  apply integrable_finset_sum
+  apply integrable_finsetSum
   intros i _
   exact (integrable_pow_gamma i).const_mul _
 

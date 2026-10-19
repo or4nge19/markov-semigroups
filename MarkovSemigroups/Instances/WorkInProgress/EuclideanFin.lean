@@ -790,7 +790,7 @@ theorem hasFDerivAt_ouSemigroupFin
               rw [← integral_const_mul]
       _ = exp (-t) *
             ∫ y, ∑ i : Fin n, v i * partialDeriv i f (ouShiftFin t x y) ∂γFin n := by
-              rw [integral_finset_sum Finset.univ (fun i _ => hint_term i)]
+              rw [integral_finsetSum Finset.univ (fun i _ => hint_term i)]
 
 theorem fderiv_ouSemigroupFin_eq
     (t : ℝ) (ht : 0 ≤ t) {f : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f) :
@@ -1005,7 +1005,7 @@ theorem integrable_abs_eval_γFin (i : Fin n) :
 theorem integrable_sum_abs_γFin :
     Integrable (fun x : Fin n → ℝ => ∑ i : Fin n, |x i|) (γFin n) := by
   simpa using
-    (integrable_finset_sum (s := Finset.univ)
+    (integrable_finsetSum (s := Finset.univ)
       (f := fun i (x : Fin n → ℝ) => |x i|)
       (fun i _ => integrable_abs_eval_γFin (n := n) i))
 
@@ -1084,7 +1084,7 @@ theorem IsCoreFin_add {f g : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f) (hg : I
     have hdf : DifferentiableAt ℝ f x := (hf_smooth.differentiable (by simp)).differentiableAt
     have hdg : DifferentiableAt ℝ g x := (hg_smooth.differentiable (by simp)).differentiableAt
     unfold partialDeriv
-    rw [fderiv_add hdf hdg, ContinuousLinearMap.add_apply]
+    rw [fderiv_add hdf hdg, add_apply]
     calc
       ‖partialDeriv i f x + partialDeriv i g x‖
         ≤ ‖partialDeriv i f x‖ + ‖partialDeriv i g x‖ := norm_add_le _ _
@@ -1102,10 +1102,10 @@ theorem IsCoreFin_add {f g : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f) (hg : I
       have hdfy : DifferentiableAt ℝ f y := (hf_smooth.differentiable (by simp)).differentiableAt
       have hdgy : DifferentiableAt ℝ g y := (hg_smooth.differentiable (by simp)).differentiableAt
       unfold partialDeriv
-      rw [fderiv_add hdfy hdgy, ContinuousLinearMap.add_apply]
+      rw [fderiv_add hdfy hdgy, add_apply]
     rw [hpartial_add]
     change ‖(fderiv ℝ ((partialDeriv i f) + (partialDeriv i g)) x) (Pi.single i 1)‖ ≤ Mf + Mg
-    rw [fderiv_add hdf' hdg', ContinuousLinearMap.add_apply]
+    rw [fderiv_add hdf' hdg', add_apply]
     calc
       ‖secondPartial i f x + secondPartial i g x‖
         ≤ ‖secondPartial i f x‖ + ‖secondPartial i g x‖ := norm_add_le _ _
@@ -1124,7 +1124,7 @@ theorem IsCoreFin_smul (c : ℝ) {f : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f
     have hsmul : fderiv ℝ (c • f) x = c • fderiv ℝ f x := by
       exact congrFun (fderiv_const_smul_field (𝕜 := ℝ) (R := ℝ) (f := f) (c := c)) x
     rw [partialDeriv, hsmul]
-    simp only [smul_eq_mul, ContinuousLinearMap.smul_apply]
+    simp only [smul_eq_mul, smul_apply]
     calc
       ‖c * partialDeriv i f x‖ = ‖c‖ * ‖partialDeriv i f x‖ := norm_mul _ _
       _ ≤ ‖c‖ * M := mul_le_mul_of_nonneg_left ((hM x).2.1 i) (norm_nonneg _)
@@ -1136,7 +1136,7 @@ theorem IsCoreFin_smul (c : ℝ) {f : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f
       have hsmul : fderiv ℝ (c • f) y = c • fderiv ℝ f y := by
         exact congrFun (fderiv_const_smul_field (𝕜 := ℝ) (R := ℝ) (f := f) (c := c)) y
       rw [partialDeriv, hsmul]
-      simp [partialDeriv, smul_eq_mul, ContinuousLinearMap.smul_apply]
+      simp [partialDeriv, smul_eq_mul, smul_apply]
     rw [hpartial]
     change ‖(fderiv ℝ (c • partialDeriv i f) x) (Pi.single i 1)‖ ≤ ‖c‖ * M
     have hsmul : fderiv ℝ (c • partialDeriv i f) x =
@@ -1144,7 +1144,7 @@ theorem IsCoreFin_smul (c : ℝ) {f : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f
       exact congrFun
         (fderiv_const_smul_field (𝕜 := ℝ) (R := ℝ) (f := partialDeriv i f) (c := c)) x
     rw [hsmul]
-    simp only [ContinuousLinearMap.smul_apply, smul_eq_mul]
+    simp only [smul_apply, smul_eq_mul]
     calc
       ‖c * secondPartial i f x‖ = ‖c‖ * ‖secondPartial i f x‖ := norm_mul _ _
       _ ≤ ‖c‖ * M := mul_le_mul_of_nonneg_left ((hM x).2.2 i) (norm_nonneg _)
@@ -1156,8 +1156,8 @@ theorem partialDeriv_mul (i : Fin n) {f g : (Fin n → ℝ) → ℝ}
   have hdf : DifferentiableAt ℝ f x := (hf.differentiable (by simp)).differentiableAt
   have hdg : DifferentiableAt ℝ g x := (hg.differentiable (by simp)).differentiableAt
   unfold partialDeriv
-  rw [fderiv_mul hdf hdg, ContinuousLinearMap.add_apply]
-  simp only [ContinuousLinearMap.smul_apply, smul_eq_mul]
+  rw [fderiv_mul hdf hdg, add_apply]
+  simp only [smul_apply, smul_eq_mul]
   ring
 
 theorem IsCoreFin_mul {f g : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f) (hg : IsCoreFin g) :
@@ -1204,7 +1204,7 @@ theorem IsCoreFin_mul {f g : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f) (hg : I
     have hadd : fderiv ℝ (u + v) x = fderiv ℝ u x + fderiv ℝ v x := by
       simpa [u, v] using! fderiv_add (hdf'.mul hdg) (hdf.mul hdg')
     rw [hadd]
-    rw [ContinuousLinearMap.add_apply]
+    rw [add_apply]
     have hmul1' : fderiv ℝ ((partialDeriv i f) * g) x =
         partialDeriv i f x • fderiv ℝ g x + g x • fderiv ℝ (partialDeriv i f) x := by
       exact fderiv_mul hdf' hdg
@@ -1212,7 +1212,7 @@ theorem IsCoreFin_mul {f g : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f) (hg : I
         (fderiv ℝ (fun y => partialDeriv i f y * g y) x) (Pi.single i 1) =
           secondPartial i f x * g x + partialDeriv i f x * partialDeriv i g x := by
       rw [show (fun y => partialDeriv i f y * g y) = ((partialDeriv i f) * g) by rfl, hmul1',
-        ContinuousLinearMap.add_apply]
+        add_apply]
       simp [secondPartial, partialDeriv, smul_eq_mul, Pi.smul_apply]
       ring
     have hmul2' : fderiv ℝ (f * partialDeriv i g) x =
@@ -1222,7 +1222,7 @@ theorem IsCoreFin_mul {f g : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f) (hg : I
         (fderiv ℝ (fun y => f y * partialDeriv i g y) x) (Pi.single i 1) =
           partialDeriv i f x * partialDeriv i g x + f x * secondPartial i g x := by
       rw [show (fun y => f y * partialDeriv i g y) = (f * partialDeriv i g) by rfl, hmul2',
-        ContinuousLinearMap.add_apply]
+        add_apply]
       simp [secondPartial, partialDeriv, smul_eq_mul, Pi.smul_apply]
       ring
     rw [hmul1, hmul2]
@@ -1250,7 +1250,7 @@ theorem IsCoreFin_mul {f g : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f) (hg : I
   have hsmul : fderiv ℝ (c • f) x = c • fderiv ℝ f x := by
     exact congrFun (fderiv_const_smul_field (𝕜 := ℝ) (R := ℝ) (f := f) (c := c)) x
   rw [partialDeriv, hsmul]
-  simp [partialDeriv, smul_eq_mul, ContinuousLinearMap.smul_apply]
+  simp [partialDeriv, smul_eq_mul, smul_apply]
 
 theorem partialDeriv_add (i : Fin n) {f g : (Fin n → ℝ) → ℝ}
     (hf : ContDiff ℝ ∞ f) (hg : ContDiff ℝ ∞ g) :
@@ -1259,7 +1259,7 @@ theorem partialDeriv_add (i : Fin n) {f g : (Fin n → ℝ) → ℝ}
   have hdf : DifferentiableAt ℝ f x := (hf.differentiable (by simp)).differentiableAt
   have hdg : DifferentiableAt ℝ g x := (hg.differentiable (by simp)).differentiableAt
   unfold partialDeriv
-  rw [fderiv_add hdf hdg, ContinuousLinearMap.add_apply]
+  rw [fderiv_add hdf hdg, add_apply]
 
 /-- Chain rule for the coordinate partial of a real power: when `f` is `C^∞` and
 nowhere zero, `∂ᵢ(fᵣ) = r · f^{r-1} · ∂ᵢf`. -/
@@ -1271,7 +1271,7 @@ theorem partialDeriv_rpow (i : Fin n) {f : (Fin n → ℝ) → ℝ} (hf : ContDi
     (hf.differentiable (by simp)).differentiableAt.hasFDerivAt
   have h := hfx.rpow_const (p := r) (Or.inl (hfne x))
   unfold partialDeriv
-  rw [h.fderiv, ContinuousLinearMap.smul_apply, smul_eq_mul]
+  rw [h.fderiv, smul_apply, smul_eq_mul]
 
 /-- **Strictly-positive `rpow` closure for `IsCoreFin`.** If `f` is a Gaussian
 core function bounded below by some `ε > 0`, then `x ↦ f x ^ r` is again core, for
@@ -1375,7 +1375,7 @@ theorem IsCoreFin.integrable_gamma {f g : (Fin n → ℝ) → ℝ}
     (hf : IsCoreFin f) (hg : IsCoreFin g) :
     Integrable (ouGammaFin f g) (γFin n) := by
   simpa [ouGammaFin] using!
-    (integrable_finset_sum (s := Finset.univ)
+    (integrable_finsetSum (s := Finset.univ)
       (f := fun i x => partialDeriv i f x * partialDeriv i g x)
       (fun i _ => hf.integrable_partial_mul hg i))
 
@@ -2538,7 +2538,7 @@ theorem ouSemigroupFin_gradient_decay (f : (Fin n → ℝ) → ℝ) (t : ℝ) (h
                     ∑ i : Fin n,
                       partialDeriv i f (ouShiftFin t x y) * partialDeriv i f (ouShiftFin t x y)
                     ∂γFin n := by
-                        rw [integral_finset_sum Finset.univ (fun i _ => h_sum_int i)]
+                        rw [integral_finsetSum Finset.univ (fun i _ => h_sum_int i)]
               _ = ouSemigroupFin t (ouGammaFin f f) x := by
                     simp [ouSemigroupFin, ouGammaFin]
   have hupper_int :
@@ -3374,7 +3374,7 @@ theorem laplace_fderiv_eq_sum {F : (Fin n → ℝ) → ℝ} (hF : PolyBdd F) (α
   have hterm_int : ∀ j : Fin n, Integrable
       (fun w => ((α * w j * F w) * Real.exp (α * ∑ i, x₀ i * w i))) (γFin n) :=
     fun j => laplace_integrable (polyBdd_smul_coord ⟨hFc,Cf,d,hCf,hbd⟩ α j) α x₀
-  rw [integral_finset_sum _ (fun j _ => (hterm_int j).smul_const _)]
+  rw [integral_finsetSum _ (fun j _ => (hterm_int j).smul_const _)]
   refine Finset.sum_congr rfl (fun j _ => ?_)
   rw [integral_smul_const]
 
@@ -4091,7 +4091,7 @@ theorem partialDeriv_sq_add_const {n : ℕ} (i : Fin n)
       (fun x => f x * f x) + (fun _ => ε) from rfl]
     have hd1 : DifferentiableAt ℝ (fun x => f x * f x) x :=
       ((hf.contDiff.mul hf.contDiff).differentiable (by simp)).differentiableAt
-    rw [fderiv_add hd1 (by simp), ContinuousLinearMap.add_apply]
+    rw [fderiv_add hd1 (by simp), add_apply]
     simp
   rw [hadd, hmul]
   ring
@@ -4176,7 +4176,7 @@ theorem sum_fisherInfoFinCoord_sq_add_const_le {n : ℕ}
               (by nlinarith [mul_self_nonneg (f x)])
   have h_int_rhs : Integrable
       (fun x => ∑ i : Fin n, 4 * (partialDeriv i f x) ^ 2) (γFin n) := by
-    refine integrable_finset_sum _ (fun i _ => ?_)
+    refine integrable_finsetSum _ (fun i _ => ?_)
     refine Integrable.mono' (integrable_const (4 * M ^ 2)) ?_ ?_
     · exact (((hpd_meas i).pow_const 2).const_mul 4).aestronglyMeasurable
     · filter_upwards with x
@@ -4187,7 +4187,7 @@ theorem sum_fisherInfoFinCoord_sq_add_const_le {n : ℕ}
       nlinarith
   -- Combine: sum of integrals, pointwise bound, then `∫ Σ 4 (∂_i f)²`.
   simp only [fisherInfoFinCoord]
-  rw [← integral_finset_sum _ (fun i _ => h_int_lhs i)]
+  rw [← integral_finsetSum _ (fun i _ => h_int_lhs i)]
   have hsum_le : ∀ x,
       ∑ i : Fin n, (partialDeriv i (fun x => f x * f x + ε) x) ^ 2 /
         (f x * f x + ε) ≤ ∑ i : Fin n, 4 * (partialDeriv i f x) ^ 2 :=
@@ -4196,7 +4196,7 @@ theorem sum_fisherInfoFinCoord_sq_add_const_le {n : ℕ}
       (partialDeriv i (fun x => f x * f x + ε) x) ^ 2 /
         (f x * f x + ε)) ∂γFin n ≤
       ∫ x, (∑ i : Fin n, 4 * (partialDeriv i f x) ^ 2) ∂γFin n :=
-    integral_mono (integrable_finset_sum _ (fun i _ => h_int_lhs i))
+    integral_mono (integrable_finsetSum _ (fun i _ => h_int_lhs i))
       h_int_rhs hsum_le
   refine le_trans hstep ?_
   -- `∫ Σ 4 (∂_i f)² = 4 · ouEnergyFin f f`.
@@ -4592,10 +4592,10 @@ theorem ouCoord_ouCoordSet {m : ℕ} (S : Finset (Fin (m + 1)))
     intro z
     refine Measurable.of_eval (fun i => ?_)
     by_cases hi : i ∈ insert j S
-    · simp only [setShift, hi, if_true]
+    · simp only [setShift, hi, ite_true]
       exact measurable_const.add
         (measurable_const.mul ((measurable_pi_apply i)))
-    · simp only [setShift, hi, if_false]
+    · simp only [setShift, hi, ite_false]
       exact measurable_const
   have hG_meas : Measurable G :=
     hg_meas.comp (hsetShift_meas x)
@@ -4630,9 +4630,9 @@ theorem measurable_setShift {n : ℕ} (S : Finset (Fin n)) (t : ℝ)
     (x : Fin n → ℝ) : Measurable (fun y => setShift S t x y) := by
   refine Measurable.of_eval (fun i => ?_)
   by_cases hi : i ∈ S
-  · simp only [setShift, hi, if_true]
+  · simp only [setShift, hi, ite_true]
     exact measurable_const.add (measurable_const.mul (measurable_pi_apply i))
-  · simp only [setShift, hi, if_false]
+  · simp only [setShift, hi, ite_false]
     exact measurable_const
 
 /-- `ouCoordSet` preserves a uniform two-sided bound `ε ≤ g ≤ M`
@@ -4679,14 +4679,14 @@ theorem measurable_ouCoordSet {n : ℕ} (S : Finset (Fin n)) (t : ℝ)
         (fun p : (Fin n → ℝ) × (Fin n → ℝ) => setShift S t p.1 p.2 i) := by
       intro i
       by_cases hi : i ∈ S
-      · simp only [setShift, hi, if_true]
+      · simp only [setShift, hi, ite_true]
         exact (measurable_const.mul
             ((measurable_pi_apply (X := fun _ : Fin n => ℝ) i).comp
               measurable_fst)).add
           (measurable_const.mul
             ((measurable_pi_apply (X := fun _ : Fin n => ℝ) i).comp
               measurable_snd))
-      · simp only [setShift, hi, if_false]
+      · simp only [setShift, hi, ite_false]
         exact (measurable_pi_apply (X := fun _ : Fin n => ℝ) i).comp
           measurable_fst
     exact (@measurable_pi_iff ((Fin n → ℝ) × (Fin n → ℝ)) (Fin n)
@@ -4845,10 +4845,10 @@ theorem continuous_ouCoordSet {n : ℕ} (S : Finset (Fin n)) (t : ℝ)
       (fun p : (Fin n → ℝ) × (Fin n → ℝ) => setShift S t p.1 p.2) := by
     refine continuous_pi (fun i => ?_)
     by_cases hi : i ∈ S
-    · simp only [setShift, hi, if_true]
+    · simp only [setShift, hi, ite_true]
       exact (continuous_const.mul ((continuous_apply i).comp continuous_fst)).add
         (continuous_const.mul ((continuous_apply i).comp continuous_snd))
-    · simp only [setShift, hi, if_false]
+    · simp only [setShift, hi, ite_false]
       exact (continuous_apply i).comp continuous_fst
   refine continuous_of_dominated (μ := γFin n) (bound := fun _ => M)
     (fun x => ?_) (fun x => ?_) (integrable_const M)

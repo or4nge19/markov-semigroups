@@ -160,7 +160,7 @@ private lemma fiberSet_eq_section (N_f : Finset I) (b : {i // i ∈ N_f} → S)
     (A : Set (SpinConfig I S)) :
     fiberSet N_f b A = Prod.mk b ⁻¹' ((prodEquiv N_f) '' A) := by
   ext ω
-  simp only [fiberSet, Set.mem_setOf_eq, Set.mem_preimage, Set.mem_image]
+  simp only [fiberSet, Set.mem_ofPred_eq, Set.mem_preimage, Set.mem_image]
   constructor
   · intro h
     exact ⟨(prodEquiv N_f).symm (b, ω), h, (prodEquiv N_f).apply_symm_apply (b, ω)⟩
@@ -425,7 +425,7 @@ private lemma fiberMeasure_compl_base
   -- The preimage is empty: every ω maps to (b, ω), which has fst = b.
   have h_empty : (fun ω => (prodEquiv N_f).symm (b, ω)) ⁻¹'
       {σ | (prodEquiv N_f σ).1 ≠ b} = ∅ := by
-    ext ω; simp only [Set.mem_preimage, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false,
+    ext ω; simp only [Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false,
       not_not, MeasurableEquiv.apply_symm_apply]
   -- {σ | (prodEquiv N_f σ).1 ≠ b} is measurable
   have h_meas : MeasurableSet {σ : SpinConfig I S | (prodEquiv N_f σ).1 ≠ b} := by
