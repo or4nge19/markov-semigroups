@@ -431,8 +431,7 @@ theorem updateCoupling_contraction_at_z [Fintype I]
     rw [Measure.bind_apply MeasurableSet.univ hf_meas.aemeasurable]
     have hf_univ : ∀ p, f p Set.univ = 1 := fun p => by
       haveI := hkernel_prob p.1 p.2
-      exact (Measure.isProbabilityMeasure_map
-        (Measurable.of_discrete).aemeasurable).measure_univ
+      exact (inferInstance : IsProbabilityMeasure (f p)).measure_univ
     simp_rw [hf_univ, lintegral_const, one_mul, measure_univ]
   have h_lhs_finite : (updateCoupling γ z P) {p | p.1 z ≠ p.2 z} ≠ ⊤ :=
     (measure_lt_top _ _).ne
@@ -573,7 +572,7 @@ theorem updateCoupling_isCoupling [Fintype I] [Countable S] [MeasurableSingleton
   have hf_prob : ∀ p, IsProbabilityMeasure (f p) := by
     intro p
     haveI := hkernel_prob p.1 p.2
-    exact Measure.isProbabilityMeasure_map (Measurable.of_discrete).aemeasurable
+    infer_instance
   -- The coupling kernel's first marginal relates to condDist via properness
   have hf_fst : ∀ p : SpinConfig I S × SpinConfig I S,
       (f p).map Prod.fst = γ.condDist {z} p.1 := by

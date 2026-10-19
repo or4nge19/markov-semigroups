@@ -79,8 +79,7 @@ def fiberMeasure (μ : Measure (SpinConfig I S)) [IsProbabilityMeasure μ]
     (N_f : Finset I) (b : {i // i ∈ N_f} → S) : Measure (SpinConfig I S) :=
   let e := prodEquiv N_f
   let ρ := μ.map e
-  haveI : IsProbabilityMeasure ρ :=
-    Measure.isProbabilityMeasure_map e.measurable.aemeasurable
+  haveI : IsProbabilityMeasure ρ := inferInstance
   (ρ.condKernel b).map (fun ω => e.symm (b, ω))
 
 set_option linter.unusedSectionVars false in
@@ -96,12 +95,11 @@ lemma fiberMeasure_isProbabilityMeasure
     (b : {i // i ∈ N_f} → S) :
     IsProbabilityMeasure (fiberMeasure μ N_f b) := by
   simp only [fiberMeasure]
-  have he : IsProbabilityMeasure (μ.map (prodEquiv N_f)) :=
-    Measure.isProbabilityMeasure_map (prodEquiv N_f).measurable.aemeasurable
+  have he : IsProbabilityMeasure (μ.map (prodEquiv N_f)) := inferInstance
   have : IsMarkovKernel (μ.map (prodEquiv N_f)).condKernel := inferInstance
   have : IsProbabilityMeasure ((μ.map (prodEquiv N_f)).condKernel b) :=
     IsMarkovKernel.isProbabilityMeasure b
-  exact Measure.isProbabilityMeasure_map (measurable_fiberLift N_f b).aemeasurable
+  infer_instance
 
 /-- The integral of g against `fiberMeasure` equals the condKernel integral.
 This is definitional, but useful as a rewrite lemma. -/
@@ -186,7 +184,8 @@ private lemma lintegral_fiberMeasure_eq_measure
   have hA' : MeasurableSet ((prodEquiv N_f) '' A) :=
     (prodEquiv N_f).measurableSet_image.mpr hA
   -- {ω | (b, ω) ∈ e '' A} = Prod.mk b ⁻¹' (e '' A) definitionally
-  convert Measure.lintegral_condKernel_mem hA' using 1
+  convert Measure.lintegral_condKernel_mem (ρ := μ.map (prodEquiv N_f)) hA' using 1
+  · rfl
   -- ρ (e '' A) = μ A
   rw [Measure.map_apply (prodEquiv N_f).measurable hA']
   congr 1
@@ -446,8 +445,7 @@ private lemma fiberMeasure_dlr_ae_fixed
       (fiberMeasure m N_f b A).toReal =
         ∫ s, (g.condDist {z} s A).toReal ∂fiberMeasure m N_f b := by
   intro r
-  haveI : IsProbabilityMeasure r :=
-    Measure.isProbabilityMeasure_map (prodEquiv N_f).measurable.aemeasurable
+  haveI : IsProbabilityMeasure r := inferInstance
   haveI : IsFiniteMeasure r.fst := Measure.fst.instIsFiniteMeasure
   -- Step 1: Integrability of both sides
   have hF_int : Integrable (fun b => (fiberMeasure m N_f b A).toReal) r.fst :=
