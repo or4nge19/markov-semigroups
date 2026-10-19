@@ -123,7 +123,7 @@ theorem CouplingSet_isClosed (μ₁ μ₂ : Measure Ω)
     exact (isClosed_singleton.preimage (ProbabilityMeasure.continuous_map continuous_fst)).inter
       (isClosed_singleton.preimage (ProbabilityMeasure.continuous_map continuous_snd))
   ext ν
-  simp only [CouplingSet, Set.mem_setOf_eq, Set.mem_inter_iff, Set.mem_preimage,
+  simp only [CouplingSet, Set.mem_ofPred_eq, Set.mem_inter_iff, Set.mem_preimage,
     Set.mem_singleton_iff]
   constructor
   · rintro ⟨h1, h2⟩
@@ -361,7 +361,7 @@ private theorem measurable_inf_apply {X Y : Type*} [MeasurableSpace X] [Measurab
     -- h : Kernel.withDensity κ_sum (rnDeriv κ_f κ_sum) + singularPart κ_f κ_sum = κ_f
     have h_eval := congr_fun (congr_arg DFunLike.coe h) x
     -- h_eval at x: (withDensity κ_sum (rnDeriv κ_f κ_sum)) x + (singularPart κ_f κ_sum) x = κ_f x
-    simp only [Kernel.coe_add, Pi.add_apply, hsp, add_zero] at h_eval
+    simp only [FunLike.coe_add, Pi.add_apply, hsp, add_zero] at h_eval
     -- h_eval: (Kernel.withDensity κ_sum (rnDeriv κ_f κ_sum)) x = κ_f x = f x
     show κ_f x = _
     rw [← h_eval, Kernel.withDensity_apply _ (Kernel.measurable_rnDeriv κ_f κ_sum)]
@@ -369,7 +369,7 @@ private theorem measurable_inf_apply {X Y : Type*} [MeasurableSpace X] [Measurab
     have h := Kernel.rnDeriv_add_singularPart κ_g κ_sum
     have hsp := (Kernel.singularPart_eq_zero_iff_absolutelyContinuous κ_g κ_sum x).mpr hg_ac
     have h_eval := congr_fun (congr_arg DFunLike.coe h) x
-    simp only [Kernel.coe_add, Pi.add_apply, hsp, add_zero] at h_eval
+    simp only [FunLike.coe_add, Pi.add_apply, hsp, add_zero] at h_eval
     show κ_g x = _
     rw [← h_eval, Kernel.withDensity_apply _ (Kernel.measurable_rnDeriv κ_g κ_sum)]
   rw [hf_eq, hg_eq, inf_eq_withDensity_min (κ_sum x)
@@ -766,7 +766,7 @@ theorem updateCoupling_compact_exists
       have hpre : ψ p.1 p.2 ⁻¹' {q : Ω × Ω | q.1 w ≠ q.2 w} =
           if p.1 w ≠ p.2 w then Set.univ else ∅ := by
         ext ⟨s1, s2⟩
-        simp only [Set.mem_preimage, Set.mem_setOf_eq]
+        simp only [Set.mem_preimage, Set.mem_ofPred_eq]
         dsimp [ψ]
         rw [Function.update_of_ne hw, Function.update_of_ne hw]
         split_ifs with h <;> simp [h]
@@ -777,7 +777,7 @@ theorem updateCoupling_compact_exists
     simp_rw [hf_wne]
     rw [show (fun p : Ω × Ω => if p.1 w ≠ p.2 w then (1 : ENNReal) else 0) =
         Set.indicator {p | p.1 w ≠ p.2 w} 1 from by
-      ext p; simp [Set.indicator_apply, Set.mem_setOf_eq]]
+      ext p; simp [Set.indicator_apply, Set.mem_ofPred_eq]]
     exact lintegral_indicator_one (measurableSet_disagreement w)
   -- Q{z-ne}: contraction via coupling bound + influence coefficients
   have h_contract : (Q {p | p.1 z ≠ p.2 z}).toReal ≤
@@ -794,7 +794,7 @@ theorem updateCoupling_compact_exists
       show (cmc p.1 p.2).map (ψ p.1 p.2) {q | q.1 z ≠ q.2 z} = _
       rw [Measure.map_apply (hψ_meas p.1 p.2) (measurableSet_disagreement z)]
       congr 1; ext ⟨s1, s2⟩
-      simp only [Set.mem_preimage, Set.mem_setOf_eq, ne_eq]
+      simp only [Set.mem_preimage, Set.mem_ofPred_eq, ne_eq]
       dsimp [ψ]
       simp [Function.update_self]
     -- Step 3: Pointwise bound: cmc{≠}.toReal ≤ tvDist ≤ Σ C(z,w) indicator
@@ -828,7 +828,7 @@ theorem updateCoupling_compact_exists
               mul_nonneg (influenceCoeff_nonneg γ z w) (by split_ifs <;> norm_num))
         _ = ∑ w : I, ∫⁻ p, ENNReal.ofReal (influenceCoeff γ z w *
               (if p.1 w = p.2 w then (0 : ℝ) else 1)) ∂P := by
-            rw [lintegral_finset_sum _ (fun w _ => by
+            rw [lintegral_finsetSum _ (fun w _ => by
               -- p ↦ ofReal(C(z,w) * if p.1 w = p.2 w then 0 else 1) is measurable
               apply Measurable.ennreal_ofReal
               apply measurable_const.mul
@@ -850,7 +850,7 @@ theorem updateCoupling_compact_exists
             rw [show (fun p : Ω × Ω =>
                 ENNReal.ofReal (if p.1 w = p.2 w then (0 : ℝ) else 1)) =
                 Set.indicator {p : Ω × Ω | p.1 w ≠ p.2 w} 1 from by
-              ext p; simp only [Set.indicator, Set.mem_setOf_eq, ne_eq, Pi.one_apply]
+              ext p; simp only [Set.indicator, Set.mem_ofPred_eq, ne_eq, Pi.one_apply]
               by_cases h : p.1 w = p.2 w
               · simp [h, ENNReal.ofReal_zero]
               · simp [h, ENNReal.ofReal_one]]

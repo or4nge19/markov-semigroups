@@ -159,7 +159,7 @@ lemma orbitCoreRep_spec (D : DirichletMarkovSemigroup X) {f : X → ℝ}
     ∃ hg' : D.IsCore (orbitCoreRep D hf h_core s),
       D.P s (D.coreToL2 hf) = D.coreToL2 hg' := by
   unfold orbitCoreRep
-  rw [dif_pos hs]
+  rw [dite_eq_left hs]
   exact (h_core s hs hf).choose_spec
 
 /-- The Gross derivative value
@@ -1443,7 +1443,7 @@ theorem hasDerivWithinAt_integral_of_strongL2Deriv {Y : Type*}
       (nhdsWithin s (Set.Ici 0)) (nhds 0) := by
     refine Filter.Tendsto.congr' ?_ hVitali
     filter_upwards [h_u_bound] with σ hσ
-    simp only [M_Lp, dif_pos hσ]
+    simp only [M_Lp, dite_eq_left hσ]
     apply eLpNorm_congr_ae
     filter_upwards [(averagedDerivField_memLp_two
       hψ hψ_bound hσ h_u_s_bound).coeFn_toLp] with y hy
@@ -1466,7 +1466,7 @@ theorem hasDerivWithinAt_integral_of_strongL2Deriv {Y : Type*}
   -- 6. Slope-filter is included in the nhdsWithin filter: 𝓝[Set.Ici 0 \ {s}] s ≤ 𝓝[Set.Ici 0] s.
   have hM_Lp_slopefilter : Filter.Tendsto M_Lp
       (nhdsWithin s (Set.Ici 0 \ {s})) (nhds g_Lp) :=
-    hM_Lp_tendsto.mono_left (nhdsWithin_mono _ Set.diff_subset)
+    hM_Lp_tendsto.mono_left (nhdsWithin_mono _ Set.sdiff_subset)
   -- 7. Filter.Tendsto.inner combines slope u s and M_Lp.
   have h_inner_tendsto : Filter.Tendsto
       (fun σ => @inner ℝ (Lp ℝ 2 ν) _ (slope u s σ) (M_Lp σ))
@@ -1509,7 +1509,7 @@ theorem hasDerivWithinAt_integral_of_strongL2Deriv {Y : Type*}
   -- Eventually-σ: assemble (i) hσ ∈ Ici 0 \ {s}, (ii) hσ_bound : a.e. |u σ| ≤ M.
   have h_u_bd_diff : ∀ᶠ σ in nhdsWithin s (Set.Ici 0 \ {s}),
       ∀ᵐ y ∂ν, |(u σ : Y → ℝ) y| ≤ M :=
-    h_u_bound.filter_mono (nhdsWithin_mono _ Set.diff_subset)
+    h_u_bound.filter_mono (nhdsWithin_mono _ Set.sdiff_subset)
   filter_upwards [self_mem_nhdsWithin, h_u_bd_diff] with σ hσ_diff hσ_bound
   have hσ_ne : σ ≠ s := hσ_diff.2
   have hΔ_ne : σ - s ≠ 0 := sub_ne_zero.mpr hσ_ne
@@ -1539,7 +1539,7 @@ theorem hasDerivWithinAt_integral_of_strongL2Deriv {Y : Type*}
       change (if h : ∀ᵐ y ∂ν, |(u σ : Y → ℝ) y| ≤ M then
           (averagedDerivField_memLp_two hψ hψ_bound h h_u_s_bound).toLp _
         else g_Lp) = _
-      rw [dif_pos hσ_bound]
+      rw [dite_eq_left hσ_bound]
     rw [hM_unfold]
     exact (averagedDerivField_memLp_two hψ hψ_bound hσ_bound h_u_s_bound).coeFn_toLp
   -- slope u s σ representative: =ᵐ (σ-s)⁻¹ * ((u σ) - (u s)).
@@ -1806,7 +1806,7 @@ theorem grossPow_hasDerivWithinAt
               - ((D.P s (D.coreToL2 hf) : Lp ℝ 2 D.μ) : X → ℝ) y| ∂D.μ) l (nhds 0) := by
         have h_orbit_cont : Filter.Tendsto (fun σ => D.P σ (D.coreToL2 hf)) l
             (nhds (D.P s (D.coreToL2 hf))) :=
-          (hu_deriv.continuousWithinAt).mono_left (nhdsWithin_mono _ Set.diff_subset)
+          (hu_deriv.continuousWithinAt).mono_left (nhdsWithin_mono _ Set.sdiff_subset)
         have h_dist : Filter.Tendsto
             (fun σ => dist (D.P σ (D.coreToL2 hf)) (D.P s (D.coreToL2 hf))) l (nhds 0) :=
           tendsto_iff_dist_tendsto_zero.mp h_orbit_cont
@@ -1857,7 +1857,7 @@ theorem grossPow_hasDerivWithinAt
           ∧ (Hfun σ σ - Hfun σ s) / (σ - s) = gfun σ (cσ σ) := by
         filter_upwards [self_mem_nhdsWithin] with σ hσ_in
         have hex := h_mvt σ hσ_in.1 (by simpa using hσ_in.2)
-        have : cσ σ = hex.choose := by simp only [cσ, dif_pos hex]
+        have : cσ σ = hex.choose := by simp only [cσ, dite_eq_left hex]
         rw [this]; exact ⟨hex.choose_spec.1, hex.choose_spec.2⟩
       -- cσ σ → s (squeeze: |cσ σ − s| ≤ |σ − s| → 0).
       have hcσ_tendsto : Filter.Tendsto cσ l (nhds s) := by

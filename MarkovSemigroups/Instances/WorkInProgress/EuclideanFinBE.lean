@@ -111,7 +111,7 @@ private theorem tendsto_ouSemigroupFinLp_right (t : ℝ) (ht : 0 ≤ t)
         (ouSemigroupFinLp (n := n) t v)
       ≤ ‖ouSemigroupFinLp (n := n) t‖ * dist (ouSemigroupFinLp (n := n) s v) v := by
           simpa [dist_eq_norm, norm_sub_rev] using
-            (ouSemigroupFinLp (n := n) t).lipschitz.norm_sub_le
+            (ouSemigroupFinLp (n := n) t).lipschitzWith.norm_sub_le
               (ouSemigroupFinLp (n := n) s v) v
     _ ≤ dist (ouSemigroupFinLp (n := n) s v) v := by
           exact mul_le_of_le_one_left (dist_nonneg)
@@ -150,7 +150,7 @@ private theorem tendsto_ouSemigroupFinLp_left {t : ℝ} (ht : 0 < t)
         (ouSemigroupFinLp (n := n) s (ouSemigroupFinLp (n := n) (t - s) v))
       ≤ ‖ouSemigroupFinLp (n := n) s‖ * dist v (ouSemigroupFinLp (n := n) (t - s) v) := by
           simpa [dist_eq_norm] using
-            (ouSemigroupFinLp (n := n) s).lipschitz.norm_sub_le v
+            (ouSemigroupFinLp (n := n) s).lipschitzWith.norm_sub_le v
               (ouSemigroupFinLp (n := n) (t - s) v)
     _ ≤ dist v (ouSemigroupFinLp (n := n) (t - s) v) := by
           exact mul_le_of_le_one_left (dist_nonneg)

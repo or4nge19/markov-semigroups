@@ -1347,7 +1347,7 @@ theorem ouSemigroupFinLp_strong_cont (f : Lp ℝ 2 (γFin n)) :
         + dist (hg_mem.toLp g) f := by
           gcongr
           simpa [dist_eq_norm, norm_sub_rev] using
-            (ouSemigroupFinLp (n := n) t).lipschitz.norm_sub_le f (hg_mem.toLp g)
+            (ouSemigroupFinLp (n := n) t).lipschitzWith.norm_sub_le f (hg_mem.toLp g)
     _ ≤ dist f (hg_mem.toLp g)
         + dist (ouSemigroupFinLp (n := n) t (hg_mem.toLp g)) (hg_mem.toLp g)
         + dist (hg_mem.toLp g) f := by

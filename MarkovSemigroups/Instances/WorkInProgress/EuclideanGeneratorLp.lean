@@ -72,7 +72,7 @@ theorem memLp_ouGeneratorFin {f : (Fin n → ℝ) → ℝ} (hf : IsCoreFin f) :
   -- Drift part `∑ᵢ xᵢ ∂ᵢf`: each term is (Gaussian coordinate)·(bounded) ∈ `L²`.
   have hB : MemLp
       (∑ i : Fin n, fun x : Fin n → ℝ => x i * partialDeriv i f x) 2 (γFin n) := by
-    refine memLp_finset_sum' _ (fun i _ => ?_)
+    refine memLp_finsetSum' _ (fun i _ => ?_)
     have hsm : AEStronglyMeasurable
         (fun x : Fin n → ℝ => x i * partialDeriv i f x) (γFin n) :=
       (((measurable_pi_apply i).stronglyMeasurable).mul
@@ -427,7 +427,7 @@ theorem gaussianFin_integrationByParts {n : ℕ}
                   ring
         _ = ∑ i : Fin (m + 1),
               ∫ x, g x * (secondPartial i f x - x i * partialDeriv i f x) ∂γFin (m + 1) := by
-                rw [integral_finset_sum (s := Finset.univ) (f := fun i x =>
+                rw [integral_finsetSum (s := Finset.univ) (f := fun i x =>
                   g x * (secondPartial i f x - x i * partialDeriv i f x)) hsum_int]
         _ = ∑ i : Fin (m + 1),
               - ∫ x, partialDeriv i g x * partialDeriv i f x ∂γFin (m + 1) := by
@@ -438,7 +438,7 @@ theorem gaussianFin_integrationByParts {n : ℕ}
               ∫ x, partialDeriv i g x * partialDeriv i f x ∂γFin (m + 1) := by
                 simp
         _ = - ∫ x, ∑ i : Fin (m + 1), partialDeriv i g x * partialDeriv i f x ∂γFin (m + 1) := by
-                rw [integral_finset_sum (s := Finset.univ) (f := fun i x =>
+                rw [integral_finsetSum (s := Finset.univ) (f := fun i x =>
                   partialDeriv i g x * partialDeriv i f x) henergy_int]
 
 /-- **G4 — nD Gaussian integration by parts, integral form**
