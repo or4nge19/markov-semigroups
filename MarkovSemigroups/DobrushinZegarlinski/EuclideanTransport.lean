@@ -105,7 +105,7 @@ instance isProbabilityMeasure_toEuclideanMeasure
     [IsProbabilityMeasure μ] :
     IsProbabilityMeasure (spec.toEuclideanMeasure μ) := by
   unfold toEuclideanMeasure
-  exact μ.isProbabilityMeasure_map measurable_euclideanEquiv_symm.aemeasurable
+  infer_instance
 
 /-- Explicit formula for the pushforward measure on a Borel set. -/
 lemma toEuclideanMeasure_apply

@@ -445,7 +445,7 @@ theorem exists_maximal_coupling (μ ν : Measure X)
       d⁻¹ • (γ.prod β)).map Prod.fst = μ := by
     rw [Measure.map_add _ _ measurable_fst, Measure.map_add _ _ measurable_fst,
         hdiag_fst, hdiag_fst,
-        Measure.map_smul, hprod_fst, hd_inv_smul_γ]
+        Measure.map_smul _ measurable_fst.aemeasurable, hprod_fst, hd_inv_smul_γ]
     -- Goal: μ.restrict s + ν.restrict sᶜ + γ = μ
     calc μ.restrict s + ν.restrict sᶜ + γ
         = μ.restrict s + (γ + ν.restrict sᶜ) := by abel
@@ -455,7 +455,7 @@ theorem exists_maximal_coupling (μ ν : Measure X)
       d⁻¹ • (γ.prod β)).map Prod.snd = ν := by
     rw [Measure.map_add _ _ measurable_snd, Measure.map_add _ _ measurable_snd,
         hdiag_snd, hdiag_snd,
-        Measure.map_smul, hprod_snd, hd_inv_smul_β]
+        Measure.map_smul _ measurable_snd.aemeasurable, hprod_snd, hd_inv_smul_β]
     -- Goal: μ.restrict s + ν.restrict sᶜ + β = ν
     calc μ.restrict s + ν.restrict sᶜ + β
         = (β + μ.restrict s) + ν.restrict sᶜ := by abel
@@ -482,7 +482,7 @@ theorem exists_maximal_coupling (μ ν : Measure X)
     have hdiag_ne : ∀ (m : Measure X), (m.map diag) {p : X × X | p.1 ≠ p.2} = 0 := by
       intro m
       rw [Measure.map_apply hdiag hne_meas]
-      convert m.empty
+      convert measure_empty (μ := m)
       ext x
       simp [diag, mem_preimage, mem_setOf_eq]
     -- Step 2: γ is supported on sᶜ, β is supported on s

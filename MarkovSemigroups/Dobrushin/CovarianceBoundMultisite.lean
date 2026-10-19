@@ -2298,8 +2298,7 @@ theorem covariance_tower_property_compact
   haveI : DecidablePred p := fun i => N_f.decidableMem i
   let e := MeasurableEquiv.piEquivPiSubtypeProd (fun _ : I => S) p
   let ρ := μ.map e
-  haveI : IsProbabilityMeasure ρ :=
-    Measure.isProbabilityMeasure_map e.measurable.aemeasurable
+  haveI : IsProbabilityMeasure ρ := inferInstance
   haveI : Nonempty ({i // ¬p i} → S) := ⟨fun _ => default⟩
   set Eg := ∫ σ, g σ ∂μ
   -- Centering identity: Cov(f, g) = E[f · (g - Eg)]
