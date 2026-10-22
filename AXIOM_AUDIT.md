@@ -1,5 +1,29 @@
 # Axiom Audit
 
+## Status (2026-10-22): no axioms, no `sorry`
+
+`markov-semigroups` (fork `or4nge19/markov-semigroups`, branch `fix-axioms`)
+declares **no `axiom`** and contains **no `sorry`** in any module, default
+target or not. Every former axiom was proved, or shown false as stated and
+removed:
+
+| Former axiom | File | Resolution (2026-10-22) |
+|---|---|---|
+| `herbst_mgf_bound` | `Abstract/Concentration.lean` | **Proved.** Herbst ODE for bounded smooth `G` (`mgf_le_of_lsi_of_bounded`), then mollified truncations of Lipschitz `F` (`exists_differentiable_approx_of_lipschitz`) and Fatou. |
+| `poincare_of_lsi` | `Abstract/Concentration.lean` | **Proved.** Linearize the LSI at `1 + εg` for bounded `g` (`variance_le_of_lsi_of_abs_le`), then arctan truncation and dominated convergence. |
+| `stroock_varopoulos` | `Abstract/Hypercontractivity.lean` | **Proved.** For each `P_t`: level-set double sum with weights `⟪1_{f=v}, P_t 1_{f=w}⟫ ≥ 0` and the scalar inequality `MarkovOperator.sv_scalar`, uniform approximation, then `t → 0⁺` through `energy_eq_deriv`. |
+| `gross_lsi_implies_hypercontractive` | `Abstract/Hypercontractivity.lean` | **False as stated** — the core may consist of constants: `DirichletMarkovSemigroup.not_forall_lsi_implies_hypercontractive` (identity semigroup on `Bool`). Removed, with the wrappers `hypercontractive_of_logSobolev` and `gross_equivalence`. The forward direction with its core hypotheses is the proved `gross_lsi_implies_hypercontractive_of_hypotheses` (`Abstract/GrossODE.lean`). |
+| `gross_hypercontractive_implies_lsi` | `Abstract/Hypercontractivity.lean` | **Proved.** Differentiate the hypercontractive bound at `t = 0` along `q(t) = 1 + e^{2ρt}` (Hölder against `φ_q(f) = f|f|^{q-2}`), using only `energy_eq_deriv`. |
+| `diamagnetic_resolvent` | `Matrix/Diamagnetic.lean` | **Proved.** Jacobi–Neumann series for `(M + iV)⁻¹`, dominated entrywise by the nonnegative series for `M⁻¹`. |
+| `zegarlinski_lsi_inequality` | `DobrushinZegarlinski/GlobalLSI.lean` | **False as stated** — `interactionMatrix` is a real `⨆`, which is `0` for unbounded mixed partials; e.g. `V = (x₁²+x₂²)/2 − x₁x₂/2 + εx₁²x₂²` meets every hypothesis with `α = 0`, `c = 1`, but `Var(x₁+x₂) → 4 > 2`. Removed with `global_lsi_of_zegarlinski` and `DobrushinZegarlinski/Concentration.lean`. `ZegarlinskiCondition` gained `mixed_bdd`. The true statement (Otto–Reznikoff 2007, Thm. 1) is not formalized. |
+| `cov_entrywise_bound_of_zegarlinski` | `DobrushinZegarlinski/EntrywiseCovariance.lean` | **False as stated** (same junk value: it asserts `Cov(x₁,x₂) = 0` for the potential above, while `Cov → 2/3`). Removed with `cov_entrywise_decay_nn` / `cov_entrywise_decay_finite_range`. The Helffer–Sjöstrand bound is not formalized. |
+| `contDiff_top_convolution_schwartzKernel` | `General/SchwartzConvolution.lean` | **Removed** (file deleted): unused, and `ContDiff ℝ ⊤` means analytic at this Mathlib. |
+| `gaussianResolvent`, `gaussianResolvent_ibp`, `gaussianResolvent_ibp_integrable`, `gaussianBochner_identity` | `Instances/WorkInProgress/EuclideanTests.lean` | **Removed** (local scaffolding; `gaussianResolvent` was an opaque function axiom) with the unconditional instance built from them; the file was repaired and builds. |
+
+The sections below are the audit as it stood before 2026-10-22, kept as
+history.
+
+
 *Centralized registry of every textbook axiom in `markov-semigroups`.
 Each row records the axiom's literature reference, vetting verdict,
 discharge plan (if any), and downstream consumers. Last refreshed:

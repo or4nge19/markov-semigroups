@@ -19,17 +19,13 @@ Ch. 22; Berman–Plemmons) are paywalled and **not present in
 | `HeatKernel.lean` | `exp(-tM) ≥ 0` entrywise for Z-matrices (−M Metzler ⇒ positive semigroup); Euler-product proof. Exports `IsZMatrix` / `IsEntryNonneg` API. | Simon, *Functional Integration and Quantum Physics* (1979), Ch. 22; Berman–Plemmons, *Nonnegative Matrices in the Mathematical Sciences* | 0 / 0 (proved) |
 | `LaplaceTransform.lean` | Resolvent as semigroup Laplace transform: `M⁻¹ = ∫₀^∞ exp(-tM) dt` for PD `M` (Step 1). Local `IsPosDef` ↔ Mathlib `Matrix.PosDef` bridge. | Simon (1979), Ch. 22 | 0 / 0 (proved) — see Gaps re: upstream `m_matrix_inverse_nonneg` |
 | `Trotter.lean` | Lie–Trotter product formula `exp(A+B) = lim (exp(A/n)·exp(B/n))^n` over ℂ (Step 2); telescoping norm bound. | Trotter, *Proc. AMS* 10 (1959) 545–551; Reed–Simon I, §VIII.8 | 0 / 0 (proved) |
-| `Diamagnetic.lean` | Main result: `|(M+iV)⁻¹(x,y)| ≤ M⁻¹(x,y)` for real PD Z-matrix `M`, real diagonal `V`; assembles the 5 steps. | Simon (1979), Ch. 22; Reed–Simon IV, §X.4 (Kato's inequality) | 0 / **1 axiom** (`diamagnetic_resolvent`, Diamagnetic.lean:57) |
+| `Diamagnetic.lean` | Main result: `|(M+iV)⁻¹(x,y)| ≤ M⁻¹(x,y)` for real PD Z-matrix `M`, real diagonal `V`, proved by a Jacobi–Neumann series dominated by the M-matrix series. | Simon (1979), Ch. 22; Reed–Simon IV, §X.4 (Kato's inequality) | 0 / 0 (proved 2026-10-22) |
 
 ## Gaps
 
-- **`diamagnetic_resolvent`** (Diamagnetic.lean:57) — the sole *local*
-  axiom in this directory. Per `status.md` it is rated against Simon
-  Ch. 22; the obstacle recorded is "assembles the 5-step proof"
-  (Laplace transform + Trotter + phase bound `|exp(iV)| = 1` + heat
-  kernel positivity + entrywise triangle inequality). The four
-  component lemmas are individually proved here; the axiom is the
-  final assembly only.
+- **`diamagnetic_resolvent`** was the sole local axiom in this
+  directory; it is now a theorem (2026-10-22), proved algebraically
+  (Jacobi–Neumann series) rather than by the 5-step semigroup assembly.
 - **Anchor-hint correction.** The hint stated
   `LaplaceTransform.lean` carries 1 axiom. It does **not** — it is
   `0 sorry / 0 axiom` and is a proved theorem. The formerly-local
@@ -40,9 +36,7 @@ Ch. 22; Berman–Plemmons) are paywalled and **not present in
   now re-exports it under the historical name as a theorem. It still
   appears in the repo-root `status.md` Matrix/ axiom table because
   the axiom *exists upstream*, but it is not charged to this
-  directory. Net: Matrix/ carries **1 local axiom**
-  (`diamagnetic_resolvent`); the repo-level count of 2 includes the
-  upstream-relocated `m_matrix_inverse_nonneg`.
+  directory. Net: Matrix/ carries **no axiom**.
 - No `sorry` anywhere in this directory.
 
 ## Cross-refs

@@ -22,7 +22,7 @@ The central result chain:
 
 3. **Brascamp-Lieb inequality** for log-concave measures mu = e^{-V} dx
    with V strictly convex: Var_mu(f) <= integral of (nabla f, (Hess V)^{-1} nabla f) dmu.
-   Proven from two analytical axioms (resolvent-IBP + integrated Bochner identity)
+   Proven from two fields of `LogConcaveMeasure` (resolvent IBP + integrated Bochner identity)
    via weighted Young's inequality. Poincare corollary when Hess V >= rho I.
 
 4. **Ornstein-Uhlenbeck semigroup** defined abstractly for any Hilbert
@@ -50,33 +50,28 @@ The central result chain:
    [lgt](https://github.com/mrdouglasny/lgt) for the Yang-Mills mass gap.
 
 9. **Diamagnetic inequality** for finite matrices: |(M+iV)^{-1}(x,y)|
-   ≤ M^{-1}(x,y) via heat kernel positivity for Z-matrices.
+   ≤ M^{-1}(x,y) via a Jacobi–Neumann series dominated by the M-matrix series.
 
-10. **Dobrushin-Zegarlinski for continuous spins:** uniform local LSI
-    + weak gradient coupling (Zegarlinski condition with `J/c ≤ α < 1`)
-    implies a global, volume-independent log-Sobolev inequality with
-    constant `c·(1-α)`. Plus the entrywise covariance corollary
-    (Helffer-Sjöstrand): `|Cov(σ_x, σ_y)| ≤ α^{d(x,y)} / (c·(1-α))` for
-    nearest-neighbor finite-range potentials. Built on the proved
-    AbstractInfluenceMatrix Neumann theory and proved single-site
-    entropy decomposition; only the textbook bridges (Otto-Reznikoff
-    LSI, Helffer-Sjöstrand) are axiomatized. For pphi2N's strict
-    thermodynamic-limit mass-gap route.
+10. **Dobrushin-Zegarlinski infrastructure for continuous spins:** the
+    Zegarlinski weak-coupling condition (`J/c ≤ α < 1`, bounded mixed
+    partials), the AbstractInfluenceMatrix Neumann theory with
+    distance-aware decay, and the single-site entropy decomposition.
+    The global LSI (Otto–Reznikoff) and the Helffer–Sjöstrand
+    covariance bound themselves are not formalized (their former axioms
+    were false as stated; see `AXIOM_AUDIT.md`).
 
 11. **Borell-Herbst concentration from LSI:** for any LSI measure with
     constant `c > 0`, every L-Lipschitz function is sub-Gaussian:
     `μ({F − E_μ F > t}) ≤ exp(−c·t²/(2L²))`. Proven via the Herbst MGF
-    bound (textbook axiom) + Mathlib's Chernoff. Composes with the
-    Zegarlinski global LSI to give Lipschitz-observable concentration
-    on Gibbs measures. One/two-sided variants, `MemLp` moment bounds,
-    and a Mathlib `HasSubgaussianMGF` interop are all proven.
+    bound (`herbst_mgf_bound`, proved) + Mathlib's Chernoff.
+    One/two-sided variants, `MemLp` moment bounds, and a Mathlib
+    `HasSubgaussianMGF` interop are all proven.
 
 12. **LSI ⇒ Poincaré (variance bound):** standard textbook implication
     that LSI(c) implies the Poincaré inequality with the same constant:
     `Var_μ(f) ≤ (1/c) ∫ ‖∇f‖² dμ`. For L-Lipschitz F, gives
-    `Var_μ(F) ≤ L²/c`. Specialized to the Zegarlinski global LSI:
-    `Var_μ_Gibbs(F) ≤ L²/(c·(1−α))`. Closes the LSI → concentration
-    → variance / spectral-gap chain.
+    `Var_μ(F) ≤ L²/c`. Closes the LSI → concentration → variance /
+    spectral-gap chain.
 
 **Multivariate Hermite / Wiener chaos / OU eigenfunctions /
 polynomial-chaos concentration** (Janson Theorem 5.10) live in
@@ -168,7 +163,7 @@ MarkovSemigroups/
     Poincare.lean               -- Spectral gap <-> variance decay
     LogSobolev.lean             -- Gross LSI, entropy decay
     HolleyStroock.lean          -- Bounded density perturbation of LSI
-    Hypercontractivity.lean     -- DirichletMarkovSemigroup; LSI <-> hypercontractivity (Gross + Stroock-Varopoulos axioms + the 3 hypothesis predicates)
+    Hypercontractivity.lean     -- DirichletMarkovSemigroup; Stroock-Varopoulos; HC => LSI (Gross); LSI => HC needs core hypotheses (counterexample)
     GrossODE.lean               -- Gross-ODE proof of LSI=>HC (FULLY PROVED, sorry-free: gross_lsi_implies_hypercontractive_of_hypotheses, via the 4 per-instance predicates incl. CoreLpL2Approx)
     Concentration.lean          -- Borell-Herbst sub-Gaussian concentration from LSI
   Diffusion/                    -- Layer 2: abstract diffusions (Gamma, Gamma_2)
@@ -186,7 +181,7 @@ MarkovSemigroups/
     GFFIdentification.lean      -- OU invariant on T^d = GFF (header)
     BrascampLieb.lean           -- Brascamp-Lieb for log-concave measures
     WorkInProgress/             -- Layer 3, in progress (honest sorries)
-      Euclidean.lean            --   R: standard Gaussian, OU semigroup (2 sorry = Lean gaps; axiom-free, Mehler-kernel axioms discharged)
+      Euclidean.lean            --   R: standard Gaussian, OU semigroup (no sorry, axiom-free; Mehler-kernel axioms discharged)
       TwoPoint.lean             --   {0,1}: not a diffusion — gamma_leibniz_fails PROVES Γ_leibniz fails (0 sorry, 0 axiom)
       EuclideanHypercontractive.lean -- R^n Gaussian: discharges the 4 Gross hypotheses + assembles stdGaussianFin_isHypercontractive (no gross_lsi_implies_hypercontractive axiom)
   Convergence/                  -- Consequences (uses Layer 1 only)
@@ -216,9 +211,8 @@ MarkovSemigroups/
     InteractionMatrix.lean      -- Gradient interaction J_{xy} = sup |∂_y ∂_x V|
     LocalLSI.lean               -- Thin SatisfiesLSI predicate, UniformLocalLSI class
     EntropyChainRule.lean       -- Bochner DLR identity (proved), single-site decomposition (proved)
-    GlobalLSI.lean              -- ZegarlinskiCondition, global_lsi_of_zegarlinski (1 axiom: zegarlinski_lsi_inequality)
-    EntrywiseCovariance.lean    -- Helffer-Sjöstrand entrywise Cov bound (1 axiom: cov_entrywise_bound_of_zegarlinski)
-    Concentration.lean          -- Lipschitz concentration corollaries from global LSI (composes Borell-Herbst; 0 new axioms)
+    GlobalLSI.lean              -- ZegarlinskiCondition (Zegarlinski's global LSI not formalized)
+    EntrywiseCovariance.lean    -- Neumann coefficients, coordinate covariance (HS bound not formalized)
   Matrix/                       -- Finite matrix semigroup theory
     HeatKernel.lean             -- exp(-tM) >= 0 for Z-matrices (proved)
     LaplaceTransform.lean       -- M^{-1} = integral exp(-tM) dt
@@ -230,26 +224,9 @@ MarkovSemigroups/
 
 ## Formalization status
 
-**Zero sorry's in the main tree** (Abstract/, Diffusion/, Convergence/,
-Coupling/, Dobrushin/, DobrushinZegarlinski/, Matrix/, and the three
-sorry-free instances in `Instances/`: BrascampLieb, Torus,
-GFFIdentification). 2 sorries remain, both in
-`Instances/WorkInProgress/TwoPoint.lean` and mathematically false for
-jump processes (validates that the diffusion axiom is a real
-constraint). The Gaussian1D Bakry-Émery instance
-(`Instances/WorkInProgress/Euclidean.lean` and supporting
-`EuclideanStein.lean`, `EuclideanHermite.lean`) holds 0 sorries and
-**1 remaining BGL Ch. 2 textbook axiom** (`ouSemigroup_entropy_sq_decay_bound`,
-the de Bruijn entropy-derivative identity; GR-vetted via Gemini).
-Eight of the originally nine were reduced to theorems: the five early
-discharges (`ouSemigroup_l2_decay_bound`, `ouSemigroup_ergodic`,
-`ouSemigroup_entropy_sq_ergodic`, `ouSemigroup_compose`,
-`gaussian2D_orthogonal_invariance`), plus the 2026-05-12 discharges of
-`ouSemigroup_gradient_decay`, `ouSemigroup_l2_sq_hasDerivWithinAt`,
-`ouSemigroup_preserves_IsCore`, and `ouSemigroup_contDiff` (Path C
-Hermite IBP). These WIP instances are imported by the top-level module
-so that callers of `#print axioms` on any theorem that transitively
-uses them will see the axiom/sorry surface honestly.
+**No `axiom` and no `sorry`** in any module (default target or not),
+verified 2026-10-22 with `#print axioms` (only `propext`,
+`Classical.choice`, `Quot.sound`) and a full build of all modules.
 
 ### Fully proved (zero sorry's)
 
@@ -269,24 +246,29 @@ uses them will see the axiom/sorry surface honestly.
 - **Weighted Young's inequality** from Hessian symmetry
 - **Variance nonnegativity** via Mathlib's `ProbabilityTheory.variance_nonneg`
 
-### Postulated as textbook axioms (2 core + 1 Stroock-Varopoulos + 1 matrix + 2 DZ + 2 concentration/Poincaré + 0 GaussianFin = 8 total)
+### Axioms: none
 
-*See [`AXIOM_AUDIT.md`](AXIOM_AUDIT.md) for the per-axiom vetting
-verdicts (Standard / Likely correct / Placeholder / etc.), review
-provenance (deep-think, Gemini chat, literature page-ref, self-audit),
-and links to the discharge plans.*
+See [`AXIOM_AUDIT.md`](AXIOM_AUDIT.md). As of 2026-10-22 the library
+declares no `axiom` and has no `sorry`:
 
+| Former axiom | File | Resolution (2026-10-22) |
+|---|---|---|
+| `herbst_mgf_bound` | `Abstract/Concentration.lean` | **Proved.** Herbst ODE for bounded smooth `G` (`mgf_le_of_lsi_of_bounded`), then mollified truncations of Lipschitz `F` (`exists_differentiable_approx_of_lipschitz`) and Fatou. |
+| `poincare_of_lsi` | `Abstract/Concentration.lean` | **Proved.** Linearize the LSI at `1 + εg` for bounded `g` (`variance_le_of_lsi_of_abs_le`), then arctan truncation and dominated convergence. |
+| `stroock_varopoulos` | `Abstract/Hypercontractivity.lean` | **Proved.** For each `P_t`: level-set double sum with weights `⟪1_{f=v}, P_t 1_{f=w}⟫ ≥ 0` and the scalar inequality `MarkovOperator.sv_scalar`, uniform approximation, then `t → 0⁺` through `energy_eq_deriv`. |
+| `gross_lsi_implies_hypercontractive` | `Abstract/Hypercontractivity.lean` | **False as stated** — the core may consist of constants: `DirichletMarkovSemigroup.not_forall_lsi_implies_hypercontractive` (identity semigroup on `Bool`). Removed, with the wrappers `hypercontractive_of_logSobolev` and `gross_equivalence`. The forward direction with its core hypotheses is the proved `gross_lsi_implies_hypercontractive_of_hypotheses` (`Abstract/GrossODE.lean`). |
+| `gross_hypercontractive_implies_lsi` | `Abstract/Hypercontractivity.lean` | **Proved.** Differentiate the hypercontractive bound at `t = 0` along `q(t) = 1 + e^{2ρt}` (Hölder against `φ_q(f) = f|f|^{q-2}`), using only `energy_eq_deriv`. |
+| `diamagnetic_resolvent` | `Matrix/Diamagnetic.lean` | **Proved.** Jacobi–Neumann series for `(M + iV)⁻¹`, dominated entrywise by the nonnegative series for `M⁻¹`. |
+| `zegarlinski_lsi_inequality` | `DobrushinZegarlinski/GlobalLSI.lean` | **False as stated** — `interactionMatrix` is a real `⨆`, which is `0` for unbounded mixed partials; e.g. `V = (x₁²+x₂²)/2 − x₁x₂/2 + εx₁²x₂²` meets every hypothesis with `α = 0`, `c = 1`, but `Var(x₁+x₂) → 4 > 2`. Removed with `global_lsi_of_zegarlinski` and `DobrushinZegarlinski/Concentration.lean`. `ZegarlinskiCondition` gained `mixed_bdd`. The true statement (Otto–Reznikoff 2007, Thm. 1) is not formalized. |
+| `cov_entrywise_bound_of_zegarlinski` | `DobrushinZegarlinski/EntrywiseCovariance.lean` | **False as stated** (same junk value: it asserts `Cov(x₁,x₂) = 0` for the potential above, while `Cov → 2/3`). Removed with `cov_entrywise_decay_nn` / `cov_entrywise_decay_finite_range`. The Helffer–Sjöstrand bound is not formalized. |
+| `contDiff_top_convolution_schwartzKernel` | `General/SchwartzConvolution.lean` | **Removed** (file deleted): unused, and `ContDiff ℝ ⊤` means analytic at this Mathlib. |
+| `gaussianResolvent`, `gaussianResolvent_ibp`, `gaussianResolvent_ibp_integrable`, `gaussianBochner_identity` | `Instances/WorkInProgress/EuclideanTests.lean` | **Removed** (local scaffolding; `gaussianResolvent` was an opaque function axiom) with the unconditional instance built from them; the file was repaired and builds. |
 
-| Axiom | Reference |
-|-------|-----------|
-| `gross_lsi_implies_hypercontractive` | Gross (1975), Theorem 1 (bundled `DirichletMarkovSemigroup`). **Bypassed in the concrete Gaussian chain** since 2026-05-22 — see below; retained only for the abstract `hypercontractive_of_logSobolev` / `gross_lsi_iff` wrappers |
-| `gross_hypercontractive_implies_lsi` | Gross (1975), Theorem 2 (now on bundled `DirichletMarkovSemigroup`) |
-| `stroock_varopoulos` | BGL Prop 1.7.1 (intermediate-step lemma for Gross; **Standard** by gemini-3.1-pro two-pass 2026-05-13). **Bypassed in the concrete Gaussian chain** since 2026-05-22 — discharged there as the *equality* `BakryEmerySpace.stroockVaropoulos_eq` (`Diffusion/StroockVaropoulos.lean`) via the diffusion `rpow` chain rule; retained for non-diffusion / abstract uses |
-| `diamagnetic_resolvent` | Diamagnetic inequality (assembles 5 steps) |
-| `zegarlinski_lsi_inequality` | Otto-Reznikoff (2007) J. Funct. Anal. 243 Thm 1; Zegarlinski (1996) CMP 175; BGL §5.7.5 |
-| `cov_entrywise_bound_of_zegarlinski` | Helffer-Sjöstrand (1994) J. Stat. Phys. 74; Naddaf-Spencer (1997) CMP 183; BGL §4.5 |
-| `herbst_mgf_bound` | BGL §5.4.1 (Herbst's lemma); Ledoux (2001) §1; Otto-Villani (2000) JFA 173 §3 |
-| `poincare_of_lsi` | BGL Proposition 5.1.3 (LSI ⇒ Poincaré with same constant) |
+**For downstream consumers:** [lgt](https://github.com/mrdouglasny/lgt)
+imports `MarkovSemigroups.Convergence.Doeblin` (Doeblin mixing); its
+closure is `Convergence/Doeblin.lean` + `Convergence/IntegralBounds.lean`.
+
+### History: the Gaussian Bakry–Émery chain
 
 The Gaussian1D concrete instance and the abstract
 `MarkovSemigroups/General/OUEntropyDecomposition.lean` are both now
@@ -397,79 +379,13 @@ RHS while the LHS remains positive. The DZ proof does not factor
 through such a separate chain rule; the iteration is interleaved
 inside `zegarlinski_lsi_inequality`.)
 
-### Which theorems actually depend on these axioms?
-
-Verified by `#print axioms` on a fresh build. The axiom footprint
-is narrow: everything outside the rows below is axiom-free (depends
-only on Lean's three standard axioms `propext`, `Classical.choice`,
-`Quot.sound`).
-
-| Axiom | Transitive consumers inside this repo |
-|---|---|
-| `gross_lsi_implies_hypercontractive` | `DirichletMarkovSemigroup.hypercontractive_of_logSobolev`, `DirichletMarkovSemigroup.gross_equivalence` (`Abstract/Hypercontractivity.lean`); not consumed by any other module or downstream project |
-| `gross_hypercontractive_implies_lsi` | `DirichletMarkovSemigroup.logSobolev_of_hypercontractive`, `DirichletMarkovSemigroup.gross_equivalence` (`Abstract/Hypercontractivity.lean`); not consumed by any other module or downstream project |
-| `diamagnetic_resolvent` | None — declared for external callers; no theorem in this repo uses it |
-| `zegarlinski_lsi_inequality` | `global_lsi_of_zegarlinski` (`DobrushinZegarlinski/GlobalLSI.lean`); declared for downstream consumers (pphi2N strict thermodynamic-limit route) |
-| `cov_entrywise_bound_of_zegarlinski` | `cov_entrywise_decay_nn` (`DobrushinZegarlinski/EntrywiseCovariance.lean`, the proven exponential-decay corollary `\|Cov(σ_x, σ_y)\| ≤ α^{d(x,y)} / (c·(1-α))` for nearest-neighbor finite-range V); declared for pphi2N's `HSData.AdmitsThimbleLocal` |
-| `herbst_mgf_bound` | `lipschitz_concentration_of_lsi` (proven theorem, `Abstract/Concentration.lean`, derived from this axiom + Mathlib's Chernoff `measure_ge_le_exp_mul_mgf`); `lipschitz_concentration_left_of_lsi` and `lipschitz_concentration_two_sided_of_lsi` (proven, by reflection / union bound); `hasSubgaussianMGF_of_lsi` (proven Mathlib `HasSubgaussianMGF` bridge); `memLp_of_lsi` (proven `L^p` moment bounds); `lipschitz_concentration_of_zegarlinski` + left-tail + two-sided + Mathlib bridge + `MemLp` (`DobrushinZegarlinski/Concentration.lean`, all composing with the global LSI from the Zegarlinski hypothesis) |
-| `poincare_of_lsi` | `variance_lipschitz_le_of_lsi` (proven `Var(F) ≤ L²/c` via Mathlib's `norm_fderiv_le_of_lipschitz`); `variance_lipschitz_le_of_zegarlinski` (proven Zegarlinski composition `Var ≤ L²/(c·(1-α))`). Declared for spectral-gap-style fluctuation bounds |
-| `Gaussian1D.bakryEmerySpace` consumes no atomic OU axioms | The Gaussian1D `BakryEmerySpace ℝ` instance (in `Instances/WorkInProgress/EuclideanEntropyDecay.lean`) is **axiom-free**. All originally-axiomatized BGL Ch. 2 / §5.5 Mehler-kernel-level facts have been discharged as theorems. |
-
-**DZ-layer axiom audit (verified `#print axioms` 2026-05-01):** the
-proven content of `DobrushinZegarlinski/` — `AbstractInfluenceMatrix`
-theory, single-site decomposition `entropy_decomposition_single_site`,
-DLR-at-Bochner-integral identity `integral_siteSmoothing`, distance-
-aware Neumann bounds `iterate_dist_zero` /
-`neumann_series_nn_dist_bound`, and the exponential-decay corollary
-`cov_entrywise_decay_nn` — is **axiom-free** (depends only on the
-three Lean built-ins). Only the two textbook axioms above are pulled
-in when the LSI / Cov bridge theorems themselves are invoked.
-
-The rest of the library is axiom-free. Specifically, the
-Bakry-Émery Poincaré / LSI / variance decay / entropy decay
-(`Diffusion/CarreDuChamp.lean`), Brascamp-Lieb
-(`Instances/BrascampLieb.lean`), Doeblin mixing
-(`Convergence/Doeblin.lean`), Dobrushin uniqueness
-(`Dobrushin/Uniqueness.lean`), TV coupling
-(`Coupling/TVCoupling.lean`), Neumann-series correlation decay
-(`Dobrushin/NeumannSeries.lean`), the multisite covariance bound
-(`Dobrushin/CovarianceBoundMultisite.lean`), and heat-kernel
-positivity for Z-matrices (`Matrix/HeatKernel.lean`) all have
-`#print axioms` showing only the three Lean built-ins.
-
-One caveat to "the rest is axiom-free": `General/SchwartzConvolution.lean`
-declares `contDiff_top_convolution_schwartzKernel` (Gemini-vetted
-2026-05-12, **Likely correct**; registered in `AXIOM_AUDIT.md` on
-2026-05-16 after the repo-wide sweep found it undocumented there). It
-has **no consumers** — staged infrastructure; the OU smoothing fact
-was discharged by a different route — so no theorem's `#print axioms`
-is affected.
-
-**For downstream consumers:** [lgt](https://github.com/mrdouglasny/lgt)'s
-Yang-Mills mass-gap proof uses only the Dobrushin + Coupling +
-Matrix/HeatKernel paths, none of which touch the eight textbook
-axioms. `#print axioms ym_mass_gap_UN` on the lgt side shows only
-`propext`, `Classical.choice`, `Quot.sound`. The DZ + concentration +
-Poincaré axioms (added 2026-04 to 2026-05) are reserved for pphi2N's
-strict thermodynamic-limit route.
-
 ### Concrete instances
 
-- **TwoPoint** ({0,1}, uniform measure): 19/21 BakryEmerySpace fields
-  proved. 2 sorry's are mathematically false (Γ_leibniz fails for jump
-  processes — validates that the diffusion axiom is a real constraint).
-- **Gaussian1D** (ℝ, N(0,1), OU semigroup): 0 sorries / 5 BGL Ch. 2
-  textbook axioms. All structure fields filled; the five remaining
-  axioms package Mehler-kernel-level facts (parametric Fubini against
-  the Gaussian density, differentiation under the integral, 2D
-  Gaussian rotation invariance, entropy derivative bridge) as named
-  axioms with proof-strategy docstrings, all Gemini-vetted
-  (gemini-3-pro-preview). Four of the originally nine were reduced
-  to theorems proved from the remaining five:
-  `ouSemigroup_l2_decay_bound` (FTC + gradient decay),
-  `ouSemigroup_ergodic` (double DCT), `ouSemigroup_entropy_sq_ergodic`
-  (DCT for `s log s` + compactness), and `ouSemigroup_compose`
-  (Gaussian convolution arithmetic).
+- **TwoPoint** ({0,1}, uniform measure): not a diffusion —
+  `gamma_leibniz_fails` proves that the Γ-Leibniz rule fails for this jump
+  process (no sorry, no axiom).
+- **Gaussian1D** (ℝ, N(0,1), OU semigroup): axiom-free; all BGL Ch. 2 /
+  §5.5 Mehler-kernel facts are proved (see the history section above).
 
 ### Verification / validation tests (Instances/WorkInProgress/EuclideanTests.lean)
 
@@ -480,25 +396,21 @@ on concrete inputs. Zero sorries.
 |---|---|---|
 | **A. Mehler eigenfunctions** | `ouSemigroup_const`, `ouSemigroup_id`, `ouSemigroup_hermite_two`, `ouSemigroup_hermite_three` (eigenvalues `1, e^{-t}, e^{-2t}, e^{-3t}` on `H₀, H₁, H₂, H₃`) | none (Mathlib only) |
 | **A. Helpers** | `integral_sq_γ` (= 1), `integral_cube_γ` (= 0), `integrable_cube_γ` | none |
-| **B. Bakry-Émery on `cos`** | `cos_isCore`, `cos_poincare` (`Var_γ(cos) ≤ ∫sin² dγ`), `cos_variance_decay` (`Var_γ(P_t cos) ≤ e^{-2t} Var_γ(cos)`) | the 3 atomic Bakry-Émery building-block axioms in `General/OUEntropyDecomposition.lean` (Fisher info decay + de Bruijn identity); the previous broad `ouSemigroup_entropy_sq_decay_bound` was discharged from these via FTC + ε-regularization. The full BGL Proposition 4.7.1 chain is now proved end-to-end (`ouSemigroup_contDiff` via Hermite IBP in `EuclideanHermite.lean`, the entropy decay via the decomposition above in `EuclideanEntropyDecay.lean`). |
+| **B. Bakry-Émery on `cos`** | `cos_isCore`, `cos_poincare` (`Var_γ(cos) ≤ ∫sin² dγ`), `cos_variance_decay` (`Var_γ(P_t cos) ≤ e^{-2t} Var_γ(cos)`) | none |
 | **C. Conditional BL → Gaussian Poincaré** | `brascampLieb_recovers_gaussian_poincare` (conditional on a `LogConcaveMeasure ℝ` with `μ = γ`) | none |
-| **C. Gaussian `LogConcaveMeasure` — structural** | `V_gauss = x²/2`, `contDiff_V_gauss`, `hessianBilin_V_gauss` (= `v · w`), `hV_gauss_convex`, `hV_gauss_curvature` (`‖v‖² ≤ Hess V(v,v)`) | none |
-| **C. Gaussian `LogConcaveMeasure` — resolvent fields** | `gaussianLogConcaveMeasure : LogConcaveMeasure ℝ` (built directly, no `Classical.choose`) | four named axioms: `gaussianResolvent`, `gaussianResolvent_ibp`, `gaussianResolvent_ibp_integrable`, `gaussianBochner_identity` (BGL §1.15-1.16: OU resolvent via Lax-Milgram + Stein IBP + Bochner-Weitzenböck) |
-| **C. Unconditional BL → Gaussian Poincaré** | `gaussian_brascampLieb_poincare` (`Var_γ(f) ≤ ∫‖f'‖² dγ` for `C¹` `f`) | the four resolvent axioms above |
+| **C. Gaussian potential — structural** | `V_gauss = x²/2`, `contDiff_V_gauss`, `hessianBilin_V_gauss` (= `v · w`), `hV_gauss_convex`, `hV_gauss_curvature` (`‖v‖² ≤ Hess V(v,v)`) | none |
+
+(The unconditional `gaussianLogConcaveMeasure` built from four local
+OU-resolvent axioms was removed on 2026-10-22 together with those axioms.)
 
 **Verification summary.** Set A confirms that the Mehler integral
 `ouSemigroup` evaluates to the textbook eigenvalues on the first four
 Hermite polynomials — operationally verifying it really is the Mehler
-kernel, without invoking the remaining atomic OU axiom. Set B
+kernel. Set B
 confirms the abstract `satisfiesPoincare` / `variance_decay` theorems
 plug correctly into the concrete instance with `ρ = 1`. Set C confirms
 that the Brascamp-Lieb route to Gaussian Poincaré with `ρ = 1` agrees
-with the Bakry-Émery route on the same constant. The Gaussian
-`LogConcaveMeasure ℝ` is now built constructively in its structural
-fields (`V = x²/2`, computed 1D Hessian, convexity, curvature ρ = 1);
-only the OU-resolvent ingredients (Lax-Milgram + Stein IBP +
-Bochner-Weitzenböck) remain as four named textbook axioms with
-BGL §1.15-1.16 citations.
+with the Bakry-Émery route on the same constant.
 
 ### TV coupling (Coupling/)
 
@@ -545,9 +457,12 @@ risk assessment, and Gemini review.
 
 ### Discharging the Gross axiom (Route A)
 
-The Gross LSI ⇒ hypercontractivity axiom
-(`gross_lsi_implies_hypercontractive`) is being discharged as a
-multi-stage program. Workstream-level roadmaps and design decisions:
+The hypothesis-free Gross LSI ⇒ hypercontractivity axiom
+(`gross_lsi_implies_hypercontractive`) was false for the bundled
+structure and has been removed (2026-10-22); the forward direction is
+the proved `gross_lsi_implies_hypercontractive_of_hypotheses`, the
+converse `gross_hypercontractive_implies_lsi` is proved. History of the
+Route A program:
 
 - [`plans/gross-discharge.md`](plans/gross-discharge.md) — overall
   Route A roadmap (H0/G1/G2/P2/P3/W workstreams). H0, G1, G2 ✅;

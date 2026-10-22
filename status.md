@@ -1,3 +1,13 @@
+> **NO AXIOMS, NO SORRY (2026-10-22, fork `or4nge19/markov-semigroups`, branch
+> `fix-axioms`).** Every former axiom was proved or shown false as stated and
+> removed; see the table at the top of `AXIOM_AUDIT.md`. Proved: `herbst_mgf_bound`,
+> `poincare_of_lsi`, `stroock_varopoulos`, `gross_hypercontractive_implies_lsi`,
+> `diamagnetic_resolvent`. False and removed: `gross_lsi_implies_hypercontractive`
+> (counterexample `not_forall_lsi_implies_hypercontractive`),
+> `zegarlinski_lsi_inequality`, `cov_entrywise_bound_of_zegarlinski` (junk `⨆`).
+> Removed as unused scaffolding: `contDiff_top_convolution_schwartzKernel` and the four
+> `EuclideanTests` axioms. The entries below are history.
+
 > **STROOCK–VAROPOULOS DISCHARGED (2026-05-22, PR #7) — 2 axioms left in the HC chain.**
 > New `Diffusion/StroockVaropoulos.lean` (level-B, reusable): `BakryEmerySpace.RpowChainRule`
 > (diffusion chain rule `Γ(uʳ,g)=r·u^{r-1}·Γ(u,g)`) + `BakryEmerySpace.stroockVaropoulos_eq`

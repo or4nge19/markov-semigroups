@@ -27,9 +27,12 @@ Otto–Reznikoff form); the discrete-TV Dobrushin uniqueness theorem
 itself lives one directory over in `MarkovSemigroups/Dobrushin/`
 (Friedli–Velenik §6.5.2).
 
-Status snapshot (matches repo `status.md`): **0 `sorry`, 2 textbook
-axioms** across these modules. Both axioms are the *functional-inequality
-assemblies* — the positivity / linear-algebra / DLR-integral arms are
+Status snapshot (2026-10-22): **0 `sorry`, 0 axioms**. The two former
+axioms (the functional-inequality assemblies `zegarlinski_lsi_inequality`
+and `cov_entrywise_bound_of_zegarlinski`) were false as stated — the real
+`⨆` in `interactionMatrix` is `0` for unbounded mixed partials — and were
+removed together with their corollaries and `Concentration.lean`; see
+`AXIOM_AUDIT.md`. The positivity / linear-algebra / DLR-integral arms are
 proved.
 
 ## Modules
@@ -40,33 +43,19 @@ proved.
 | `InteractionMatrix.lean` | Gradient interaction matrix `J_{xy}(V) = sup_ψ |∂_y∂_x V(ψ)|` from the mixed `fderiv` of the potential on `EuclideanSpace ℝ Λ = PiLp 2`; packages `c·J` (`gradInteractionMatrix`, gated on `ContDiff ℝ 2 V`) for `AbstractInfluenceMatrix`. The continuous analogue of the Dobrushin interdependence matrix. | Guionnet–Zegarliński Ch. 5 §5.1 (finite-range potential `Φ`, `‖Φ‖<∞`); Dobrushin interdependence (influence) matrix, Friedli–Velenik §6.5.2–6.5.3, pp. 268–271 (single-site oscillation bound feeding `c_{ij}`). | Proved (sorry-free, no axiom) |
 | `LocalLSI.lean` | Thin `fderiv`-based LSI predicate `Ent_μ(f²) ≤ (2/c) ∫‖∇f‖² dμ` decoupled from the Dirichlet-space scaffold; `UniformLocalLSI` class = single-site conditional LSI with the *same* `c`, uniformly in the boundary. The (iv)-side per-site hypothesis of Thm 8.8. | Guionnet–Zegarliński Ch. 4, Thm 4.1 (LSI definition, eq. 4.0.1), p. 34; uniform-in-`Λ,ω` LSI = condition (iv) of Equivalence Thm 8.8, p. 102. | Proved (sorry-free, no axiom) |
 | `EntropyChainRule.lean` | `entropy`, `siteSmoothing`, the **proved** DLR-at-Bochner-integral identity (`integral_siteSmoothing`) and the single-site decomposition `entropy_decomposition_single_site` (S1). Spatial-sweeping / Doob-martingale decomposition of relative entropy. (Earlier `entropy_chain_rule_local` axiom was removed after review — false without a coupling term.) | Guionnet–Zegarliński Ch. 5 §5.2 telescoping identity and Ch. 7 (Lu–Yau martingale expansion of relative entropy along an increasing filtration), pp. 50–73, 83–94; BGL §5.7.4; Stroock–Zegarliński, *CMP* 144 (1992) §3. | Proved (sorry-free, no axiom; S1 proved, no global chain-rule axiom) |
-| `GlobalLSI.lean` | `ZegarlinskiCondition` (`Σ J/c ≤ α < 1`, Otto–Reznikoff form), the `IsGibbsSpecificationFor` link class, and `global_lsi_of_zegarlinski`: uniform local LSI + weak coupling ⇒ volume-independent global LSI with `C = c·(1−α)`. Positivity arm proved; functional inequality is the axiom. | Guionnet–Zegarliński Ch. 5 §5.2 (auxiliary-chain template, `c=c̄/(1−λ)`) and Equivalence Thm 8.8 (i)/(iv) ⇒ global LSI, p. 102; Zegarliński, *Lett. Math. Phys.* 20 (1990); Otto–Reznikoff, *JFA* 243 (2007) Thm 1; BGL Thm 5.7.5. | **1 axiom** `zegarlinski_lsi_inequality` (rated *Likely correct*, GR / Gemini) |
-| `EntrywiseCovariance.lean` | `neumannEntrywise`, `coord`, `covCoord`; entrywise covariance bound `|Cov_μ(σ_x,σ_y)| ≤ (1/c)·neumannEntrywise(J/c) x y` via Helffer–Sjöstrand + Neumann expansion of the inverse Hessian + log-concavity, with the finite-range exponential-decay corollary. The bridge `pphi2N`'s mass-gap proof consumes. | Helffer–Sjöstrand representation of covariance, Naddaf–Spencer *CMP* 183 (1997), Helffer–Sjöstrand *JSP* 74 (1994); BGL §4.5; consistent with Guionnet–Zegarliński Ch. 5 strong-mixing / covariance-decay (`|E_Λ^ω(f,g)| ≤ e^{−M·d}`, Thm 8.8 (i)). | **1 axiom** `cov_entrywise_bound_of_zegarlinski` (rated *Likely correct*, GR / Gemini; needs `h_convex` uniform log-concavity, L² integrability) |
-| `Concentration.lean` | Zegarliński-specific Lipschitz concentration: composes the proved positivity arm of `global_lsi_of_zegarlinski` with the Borell–Herbst entropy-method bound to get `μ_eucl({F−E F > t}) ≤ exp(−c(1−α)t²/2L²)`. No new axiom (reuses `Abstract/Concentration` and the `GlobalLSI` axiom). | Herbst argument from LSI: van Handel Ch. 3 §3.3, pp. 55–63 (Ent ⇒ subgaussian Lipschitz tail `P(f−Ef≥t) ≤ e^{−t²/2C‖f‖_Lip²}`); discrete/spin-system entropy method van Handel §3.4. | Proved here (sorry-free, no own axiom; depends on `GlobalLSI` axiom) |
+| `GlobalLSI.lean` | `ZegarlinskiCondition` (`Σ J/c ≤ α < 1`, Otto–Reznikoff form, bounded mixed partials `mixed_bdd`), the `IsGibbsSpecificationFor` link class. The global LSI itself is not formalized. | Guionnet–Zegarliński Ch. 5 §5.2; Zegarliński, *Lett. Math. Phys.* 20 (1990); Otto–Reznikoff, *JFA* 243 (2007) Thm 1; BGL Thm 5.7.5. | Proved (sorry-free, no axiom) |
+| `EntrywiseCovariance.lean` | `neumannEntrywise` and its bounds, `coord`, `covCoord`. The Helffer–Sjöstrand entrywise covariance bound is not formalized. | Helffer–Sjöstrand *JSP* 74 (1994); Naddaf–Spencer *CMP* 183 (1997); BGL §4.5. | Proved (sorry-free, no axiom) |
 | `EuclideanTransport.lean` | Type-side adapter: `GibbsSpec.toEuclideanMeasure` pushes a Gibbs measure from `SpinConfig Λ ℝ = Λ→ℝ` (product / `L^∞`) onto `EuclideanSpace ℝ Λ = PiLp 2` (`ℓ²` Borel), with probability preservation proved. Bookkeeping bridge so the LSI predicate and the Gibbs framework share a carrier. | Carrier/topology bookkeeping (`L^∞` vs `ℓ²`) for the LSI ⇒ transport hierarchy; context: van Handel Ch. 4 §4.4 (Otto–Villani LSI ⇒ T₂ ⇒ Gaussian concentration), pp. 99–112. No formalized transport theorem here — name reflects the `EuclideanSpace` carrier the transport-side arguments expect. | Proved (sorry-free, no axiom) |
 
 ## Gaps
 
-- **`zegarlinski_lsi_inequality` (`GlobalLSI.lean:234`).** Textbook
-  axiom: the functional-inequality assembly of `global_lsi_of_zegarlinski`.
-  It composes the proved `entropy_decomposition_single_site`, the
-  uniform local LSI, and the `AbstractInfluence` Neumann row bound on
-  `J/c` (Schur estimate). Positivity arm is proved separately; this
-  axiom is the entropy-chain ⇒ global-LSI step (the standard
-  Ch. 5 §5.2 / BGL §5.7 measure-theoretic content). Rated
-  *Likely correct* (GR, Gemini chat) after fixes to algebra direction
-  (`Σ J/c ≤ α`, **not** `c·J ≤ α`), integrability of
-  `f², f²·log f², ‖∇f‖²`, and the `IsGibbsSpecificationFor` spec↔V
-  link. Debt, not a free lemma — discharge target is the Lu–Yau /
-  spatial-sweeping construction (Ch. 5 §5.2, Ch. 7).
-- **`cov_entrywise_bound_of_zegarlinski` (`EntrywiseCovariance.lean:146`).**
-  Textbook axiom: Helffer–Sjöstrand covariance identity + Neumann
-  inverse-Hessian expansion + log-concavity. Rated *Likely correct*
-  (GR, Gemini) after five fixes, notably the **separately required**
-  `h_convex` (uniform `Hess V_xx ≥ c`; *not* implied by local LSI
-  alone — double-well counterexample), a substantive
-  `IsGibbsSpecificationFor` (closing a soundness hole), and L²
-  (not L¹) integrability of coordinate functions.
+- **Zegarlinski's global LSI and the Helffer–Sjöstrand covariance bound
+  are not formalized.** Their former axioms were false as stated (junk
+  `⨆`: e.g. `V = (x₁²+x₂²)/2 − x₁x₂/2 + εx₁²x₂²` satisfies every
+  hypothesis with `α = 0`, `c = 1`, yet `Var(x₁+x₂) → 4 > 2` and
+  `Cov(x₁,x₂) → 2/3`). `ZegarlinskiCondition.mixed_bdd` now excludes the
+  junk value; the true statements (Otto–Reznikoff 2007 Thm 1; the
+  Helffer–Sjöstrand estimate) remain the discharge targets.
 - **No formalized Equivalence Theorem 8.8.** Only the `(i)/(iv) ⇒
   global LSI` direction and its corollaries are mechanized. The full
   four-way equivalence (complete analyticity, (iii)⇒(i) via the

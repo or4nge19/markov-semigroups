@@ -16,25 +16,21 @@ Herbst concentration consequence. This is the entry point consumed by the
 | `Poincare.lean` | `PoincareInequality` predicate; `poincare_of_spectralGap`; `variance_exponential_decay`. Optimal constant = spectral gap of the generator. | Guionnet–Zegarliński Ch. 2 (Spectral Gap Inequality and L² Ergodicity, pp. 15–22; "directly underlies `Abstract/Poincare.lean`"). Also BGL 2014 Ch. 4 (per module docstring). | sorry-free, 0 axioms |
 | `LogSobolev.lean` | `LogSobolevInequality` predicate; `gross_log_sobolev_gaussian`; `logSobolev_implies_poincare`; `entropy_exponential_decay`. | Guionnet–Zegarliński Ch. 4 (Logarithmic Sobolev Inequalities and Hypercontractivity, pp. 33–48). Ledoux 2000 §4.2 (Gross equivalence, pp. 346–362). Also Gross (1975); BGL 2014 Ch. 5 (per module docstring). | sorry-free, 0 axioms |
 | `HolleyStroock.lean` | `holleyStroock_logSobolev` / `holleyStroock_poincare`: bounded perturbation `μ₁ = (1/Z)e^{−V}μ₀` keeps LSI with `ρ₁ = ρ₀·e^{−osc(V)}`. | Guionnet–Zegarliński **Property 4.6, article p. 40 (PDF p. 43)** — the exact statement formalized here. Holley–Stroock (1987). | sorry-free, 0 axioms |
-| `Hypercontractivity.lean` | `MarkovSemigroup` (L²-carried), `DirichletMarkovSemigroup`, `IsHypercontractive`; Gross LSI ⇔ hypercontractivity. | Ledoux 2000 **Corollary 4.3** (Gross hypercontractivity equivalence, §4.2 pp. 346–362) and van Handel **§8.2** (pp. 260–269, time–exponent relation `e^{2t/C}=(q(t)−1)/(p−1)`) — the authoritative vetting citations. GZ Ch. 4 Theorem 4.1. | sorry-free, **3 axioms** |
-| `Concentration.lean` | Borell/Herbst sub-Gaussian concentration of Lipschitz functions from LSI: `μ(F−E F > t) ≤ exp(−c t²/(2L²))`. | van Handel Ch. 3 §3.3 (The entropy method / Herbst argument, pp. 55–63). BGL 2014 §5.4 (Herbst's lemma); Ledoux (2001) §1; Otto–Villani (2000). | sorry-free, **2 axioms** |
+| `Hypercontractivity.lean` | `MarkovSemigroup` (L²-carried), `DirichletMarkovSemigroup`, `IsHypercontractive`; Gross LSI ⇔ hypercontractivity. | Ledoux 2000 **Corollary 4.3** (Gross hypercontractivity equivalence, §4.2 pp. 346–362) and van Handel **§8.2** (pp. 260–269, time–exponent relation `e^{2t/C}=(q(t)−1)/(p−1)`) — the authoritative vetting citations. GZ Ch. 4 Theorem 4.1. | sorry-free, axiom-free |
+| `Concentration.lean` | Borell/Herbst sub-Gaussian concentration of Lipschitz functions from LSI: `μ(F−E F > t) ≤ exp(−c t²/(2L²))`. | van Handel Ch. 3 §3.3 (The entropy method / Herbst argument, pp. 55–63). BGL 2014 §5.4 (Herbst's lemma); Ledoux (2001) §1; Otto–Villani (2000). | sorry-free, axiom-free |
 
-Directory totals (status.md row): 6 modules, 0 sorries, 4 distinct
-audited-axiom families; per-file grep confirms 3 axioms in
-`Hypercontractivity.lean` and 2 in `Concentration.lean` (no other axioms),
-all sorry-free.
+Directory totals: 6 modules, 0 sorries, 0 axioms (2026-10-22).
 
-### Axioms in this layer (textbook, audited)
+### Former axioms in this layer
 
-- `Hypercontractivity.lean`: `gross_lsi_implies_hypercontractive`
-  (Gross 1975 Thm 1), `gross_hypercontractive_implies_lsi` (Gross 1975
-  Thm 2) — both stated on the bundled `DirichletMarkovSemigroup`;
-  `stroock_varopoulos` (BGL Prop 1.7.1 / §1.7, vetted **Standard**,
-  intermediate step toward a Gross discharge, no internal consumers yet).
-- `Concentration.lean`: `herbst_mgf_bound` (BGL §5.4.1; the full theorem
-  `lipschitz_concentration_of_lsi` is *proven* from it via Mathlib
-  Chernoff), `poincare_of_lsi` (BGL Prop 5.1.3; LSI ⇒ Poincaré, the
-  Lipschitz variance bound is *proven* from it).
+All proved or removed on 2026-10-22 (see `AXIOM_AUDIT.md`):
+`herbst_mgf_bound`, `poincare_of_lsi`, `stroock_varopoulos` and
+`gross_hypercontractive_implies_lsi` are theorems;
+`gross_lsi_implies_hypercontractive` was false for a bare
+`DirichletMarkovSemigroup` (counterexample
+`DirichletMarkovSemigroup.not_forall_lsi_implies_hypercontractive`) and was
+removed — the forward direction with core hypotheses is
+`gross_lsi_implies_hypercontractive_of_hypotheses` (`GrossODE.lean`).
 
 ## Gaps
 
@@ -49,12 +45,12 @@ all sorry-free.
   dictionary is *not* built here, and its prerequisite wall — capacity
   theory and the Kato-style form representation underlying the closed
   Dirichlet form (FOT Ch. 2, the capacity prerequisite) — is absent.
-  The form-vs-semigroup link is instead axiomatized structurally in
+  The form-vs-semigroup link is instead recorded as a structure field in
   `Hypercontractivity.lean` via `DirichletMarkovSemigroup`.
 - **Γ₂ / Bakry–Émery curvature** (Ledoux 2000 §1 CD(R,n)) lives in the
   `Diffusion/` layer, not here, by design (Layer 1 assumes no Γ).
-- The two Gross axioms remain textbook debt: `stroock_varopoulos` is a
-  partial step toward discharging them but has no internal consumers.
+- Gross's forward implication needs core hypotheses (density/invariance
+  of the core); for a bare `DirichletMarkovSemigroup` it is false.
 
 ## Cross-refs
 

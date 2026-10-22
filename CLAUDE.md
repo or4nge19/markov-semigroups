@@ -58,7 +58,7 @@ MarkovSemigroups/
     Poincare.lean               --   Poincaré inequality
     LogSobolev.lean             --   Log-Sobolev inequality
     HolleyStroock.lean          --   Bounded perturbation of LSI
-    Hypercontractivity.lean     --   LSI ↔ hypercontractivity (Gross, 2 axioms)
+    Hypercontractivity.lean     --   Stroock–Varopoulos, Gross HC ⇒ LSI (proved)
   Diffusion/                    -- Layer 2: carré du champ
     CarreDuChamp.lean           --   Γ operator, Bakry-Émery Poincaré/LSI
     BakryEmerySpace.lean        --   Curvature typeclass
@@ -93,9 +93,9 @@ MarkovSemigroups/
       Euclidean.lean            --   Standard Gaussian (9 sorry's = Lean gaps)
   Matrix/                       -- Finite matrix semigroup theory
     HeatKernel.lean             --   exp(-tM) ≥ 0 for Z-matrices (proved)
-    LaplaceTransform.lean       --   M⁻¹ = ∫exp(-tM) dt (1 axiom)
+    LaplaceTransform.lean       --   M⁻¹ ≥ 0 for M-matrices (proved)
     Trotter.lean                --   Lie-Trotter product formula (proved)
-    Diamagnetic.lean            --   |(M+iV)⁻¹| ≤ M⁻¹ entrywise (1 axiom)
+    Diamagnetic.lean            --   |(M+iV)⁻¹| ≤ M⁻¹ entrywise (proved)
 ```
 
 ## Lean 4 Working Methods

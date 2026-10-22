@@ -13,9 +13,9 @@ functions), the Stroock–Varopoulos comparison is in fact an **equality**
 This is the "level B" of the Stroock–Varopoulos hierarchy: it holds for every
 diffusion form (gradient / carré-du-champ with the chain rule), strictly more
 general than the concrete Gaussian instance and strictly less general than the
-abstract `stroock_varopoulos` axiom (which covers all Markovian Dirichlet forms,
-where S–V is only an *inequality*, proved via Beurling–Deny convexity against the
-jump kernel).
+abstract theorem `stroock_varopoulos` (`Abstract/Hypercontractivity.lean`, all
+`DirichletMarkovSemigroup`s, where S–V is only an *inequality*, proved from the
+positivity of the semigroup on level sets).
 
 ## Main results
 
@@ -25,11 +25,9 @@ jump kernel).
 ## Extending to more general forms
 
 A non-diffusion Markovian Dirichlet form satisfies S–V only as an inequality
-`(4(q-1)/q²)·E(u^{q/2},u^{q/2}) ≤ E(u,u^{q-1})`, proved from the Beurling–Deny
-representation and convexity of `(a,b) ↦ (a^{q/2}-b^{q/2})² · …`. Such a proof
-would be added here as `…stroockVaropoulos_le` against the appropriate weaker
-structural hypothesis (a jump-kernel/Beurling–Deny field on the form), and the
-diffusion `…_eq` below is the special case where the jump part vanishes.
+`(4(q-1)/q²)·E(u^{q/2},u^{q/2}) ≤ E(u,u^{q-1})`; this is the proved theorem
+`stroock_varopoulos` for any `DirichletMarkovSemigroup`. The diffusion `…_eq`
+below is the special case where it is an equality.
 
 ## References
 
