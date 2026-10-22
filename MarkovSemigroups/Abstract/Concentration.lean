@@ -15,18 +15,19 @@ This is the Otto-Villani / Herbst concentration consequence of LSI.
 
 ## Status
 
-* `herbst_mgf_bound` — textbook axiom: the moment-generating function
-  of `F − E_μ F` is bounded by `exp(L²t²/(2c))` (sub-Gaussian with
-  parameter `L²/c`). This is Herbst's lemma proper (BGL §5.4).
-* `lipschitz_concentration_of_lsi` — *proven theorem* from
-  `herbst_mgf_bound` + Mathlib's Chernoff
-  (`measure_ge_le_exp_mul_mgf`).
-* `lipschitz_concentration_left_of_lsi` — *proven* by reflection on
-  `-F` against the right-tail concentration theorem.
+All results are proved (no axioms).
 
-The factoring isolates the deep step (Herbst's lemma — requires
-truncation/mollification of test function `exp(λF/2)`) from the
-mechanical Chernoff optimization. The latter is now fully proven.
+* `herbst_mgf_bound` — Herbst's lemma: the moment-generating function
+  of `F − E_μ F` is bounded by `exp(L²t²/(2c))` (sub-Gaussian with
+  parameter `L²/c`), BGL §5.4. Proved for bounded smooth functions by
+  the Herbst differential inequality (`mgf_le_of_lsi_of_bounded`), then
+  for Lipschitz `F` via mollified truncations
+  (`exists_differentiable_approx_of_lipschitz`) and Fatou's lemma.
+* `lipschitz_concentration_of_lsi` — from `herbst_mgf_bound` +
+  Mathlib's Chernoff bound (`measure_ge_le_exp_mul_mgf`).
+* `lipschitz_concentration_left_of_lsi` — by reflection on `-F`.
+* `poincare_of_lsi` — LSI ⇒ Poincaré with the same constant
+  (linearization at `1 + εg`, then arctan truncation).
 
 ## References
 
@@ -42,6 +43,10 @@ import Mathlib.Probability.Moments.Basic
 import Mathlib.Probability.Moments.SubGaussian
 import Mathlib.Topology.MetricSpace.Lipschitz
 import MarkovSemigroups.DobrushinZegarlinski.LocalLSI
+import Mathlib.Analysis.Calculus.BumpFunction.Convolution
+import Mathlib.Analysis.Calculus.BumpFunction.FiniteDimension
+import Mathlib.Analysis.Calculus.ContDiff.Convolution
+import Mathlib.Probability.Moments.MGFAnalytic
 
 noncomputable section
 
@@ -51,57 +56,404 @@ open MeasureTheory MarkovSemigroups.DobrushinZegarlinski ProbabilityTheory
 open Real
 open scoped NNReal
 
-/-- **Borell-Herbst concentration from LSI (textbook axiom).**
+section Herbst
 
-For a measure `μ` on a finite-dimensional inner-product space `E`
-satisfying a log-Sobolev inequality with constant `c > 0`, every
-`L`-Lipschitz function `F : E → ℝ` is sub-Gaussian:
-
-  μ({x : F x − E_μ F > t}) ≤ exp(−c · t² / (2 L²)).
-
-Reference: Bakry, Gentil, Ledoux, *Analysis and Geometry of Markov
-Diffusion Operators*, Springer, 2014, Proposition 5.4.1 (Herbst
-argument). Also Ledoux 2001 §1 and Otto-Villani 2000 §3.
-
-Strategy: Apply LSI to the test function `exp(λF/2)`. The entropy
-and gradient calculations yield, for the cumulant generating function
-`K(λ) = log E_μ exp(λ(F − E_μ F))`,
-
-  λ K'(λ) − K(λ) ≤ L² λ² / (2 c).
-
-Dividing by `λ²` and integrating from `0` (using
-`lim_{λ→0⁺} K(λ)/λ = 0` since `F − E_μ F` is centered) gives
-
-  K(λ) ≤ L² λ² / (2 c).
-
-Combined with the Chernoff bound (Markov on `exp(λ X)`), this yields
-the sub-Gaussian tail. The argument is standard but technically
-delicate to formalize because applying LSI to `exp(λF/2)` requires
-exponential integrability that is *equivalent* to the conclusion;
-the rigorous treatment uses truncation `F_n = max(min(F, n), -n)`
-and a limit argument. We axiomatize the final bound to avoid this
-bookkeeping.
-
-(NOT VERIFIED — axiom stands until peer review or full formalization
-of the Herbst argument with truncation.)
-
-We axiomatize the *MGF bound* (Herbst's lemma proper); the
-concentration `lipschitz_concentration_of_lsi` is then a *theorem*
-proved by Mathlib's Chernoff bound `measure_ge_le_exp_mul_mgf`.
-This factoring isolates the deep step (Herbst's lemma — derived from
-LSI via the test function `exp(λF/2)`) from the mechanical step
-(Chernoff optimization). -/
-axiom herbst_mgf_bound
-    {E : Type*}
+variable {E : Type*}
     [NormedAddCommGroup E] [InnerProductSpace ℝ E]
     [MeasurableSpace E] [BorelSpace E] [FiniteDimensional ℝ E]
+
+omit [NormedAddCommGroup E] [InnerProductSpace ℝ E] [BorelSpace E]
+  [FiniteDimensional ℝ E] in
+/-- A bounded measurable real function is integrable for a probability measure. -/
+lemma integrable_of_abs_le {μ : Measure E} [IsProbabilityMeasure μ] {F : E → ℝ}
+    (hF : Measurable F) {C : ℝ} (hC : ∀ x, |F x| ≤ C) : Integrable F μ :=
+  Integrable.of_bound hF.aestronglyMeasurable C
+    (ae_of_all _ fun x => by rw [Real.norm_eq_abs]; exact hC x)
+
+/-- **Smooth approximation of bounded Lipschitz functions.** A bounded
+`L`-Lipschitz `g` is uniformly `Lδ`-close to a differentiable function with
+the same bound and gradient norm at most `L` (mollification). -/
+lemma exists_differentiable_approx_of_lipschitz {g : E → ℝ} {L : ℝ≥0}
+    (hg : LipschitzWith L g) {B : ℝ} (hB : ∀ x, |g x| ≤ B) {δ : ℝ} (hδ : 0 < δ) :
+    ∃ G : E → ℝ, Differentiable ℝ G ∧ (∀ x, |G x| ≤ B) ∧
+      (∀ x, ‖fderiv ℝ G x‖ ≤ L) ∧ ∀ x, |G x - g x| ≤ L * δ := by
+  set ν : Measure E := (Module.finBasis ℝ E).addHaar
+  let φ : ContDiffBump (0 : E) := ⟨δ / 2, δ, by positivity, by linarith⟩
+  set ψ := φ.normed ν
+  set G : E → ℝ := convolution ψ g (ContinuousLinearMap.lsmul ℝ ℝ) ν
+  have hgc : Continuous g := hg.continuous
+  have hgm : AEStronglyMeasurable g ν := hgc.aestronglyMeasurable
+  have hB0 : 0 ≤ B := (abs_nonneg _).trans (hB 0)
+  have hGdef : ∀ x, G x = ∫ t, ψ t * g (x - t) ∂ν := by
+    intro x
+    simp only [G, convolution_def, ContinuousLinearMap.lsmul_apply, smul_eq_mul]
+  have hint : ∀ x, Integrable (fun t => ψ t * g (x - t)) ν := by
+    intro x
+    refine (φ.continuous_normed.mul (hgc.comp (continuous_const.sub continuous_id)))
+      |>.integrable_of_hasCompactSupport ?_
+    exact φ.hasCompactSupport_normed.mul_right
+  refine ⟨G, ?_, ?_, ?_, ?_⟩
+  · exact ((φ.hasCompactSupport_normed (μ := ν)).contDiff_convolution_left
+      (ContinuousLinearMap.lsmul ℝ ℝ) (φ.contDiff_normed (n := 1))
+      hgc.locallyIntegrable).differentiable one_ne_zero
+  · intro x
+    have := dist_convolution_le (z₀ := (0 : ℝ)) (x₀ := x) hB0 φ.support_normed_eq.subset
+      φ.nonneg_normed φ.integral_normed hgm (fun y _ => by
+        rw [Real.dist_eq, sub_zero]; exact hB y)
+    rwa [Real.dist_eq, sub_zero] at this
+  · intro x
+    refine norm_fderiv_le_of_lipschitz ℝ (LipschitzWith.of_dist_le_mul fun x y => ?_)
+    rw [Real.dist_eq, hGdef, hGdef, ← integral_sub (hint x) (hint y)]
+    calc |∫ t, (ψ t * g (x - t) - ψ t * g (y - t)) ∂ν|
+        ≤ ∫ t, |ψ t * g (x - t) - ψ t * g (y - t)| ∂ν := abs_integral_le_integral_abs
+      _ ≤ ∫ t, ψ t * (L * dist x y) ∂ν := by
+          refine integral_mono ((hint x).sub (hint y)).abs
+            (φ.integrable_normed.mul_const _) fun t => ?_
+          rw [← mul_sub, abs_mul, abs_of_nonneg (φ.nonneg_normed t)]
+          refine mul_le_mul_of_nonneg_left ?_ (φ.nonneg_normed t)
+          have := hg.dist_le_mul (x - t) (y - t)
+          rwa [Real.dist_eq, dist_sub_right] at this
+      _ = L * dist x y := by
+          rw [integral_mul_const, φ.integral_normed, one_mul]
+  · intro x
+    have := φ.dist_normed_convolution_le (μ := ν) (x₀ := x) hgm (fun y hy => by
+      calc dist (g y) (g x) ≤ L * dist y x := hg.dist_le_mul y x
+        _ ≤ L * δ := by
+            gcongr
+            exact (Metric.mem_ball.mp hy).le)
+    rwa [Real.dist_eq] at this
+
+/-- **Herbst's argument, bounded smooth case, `s > 0`.** -/
+theorem mgf_le_of_lsi_of_bounded_of_pos
+    {μ : Measure E} [IsProbabilityMeasure μ] {c : ℝ} (h_lsi : SatisfiesLSI μ c)
+    {G : E → ℝ} (hG : Differentiable ℝ G) {B : ℝ} (hGB : ∀ x, |G x| ≤ B)
+    {L : ℝ} (hGL : ∀ x, ‖fderiv ℝ G x‖ ≤ L) {s : ℝ} (hs : 0 < s) :
+    mgf (fun x => G x - ∫ y, G y ∂μ) μ s ≤ Real.exp (L ^ 2 * s ^ 2 / (2 * c)) := by
+  have hc := h_lsi.c_pos
+  have hGc : Continuous G := hG.continuous
+  have hGi : Integrable G μ := integrable_of_abs_le hGc.measurable hGB
+  set m := ∫ y, G y ∂μ with hm_def
+  have hm : |m| ≤ B := by
+    calc |m| ≤ ∫ x, |G x| ∂μ := abs_integral_le_integral_abs
+      _ ≤ ∫ _, B ∂μ := integral_mono hGi.abs (integrable_const B) hGB
+      _ = B := by simp
+  set Y : E → ℝ := fun x => G x - m with hY_def
+  have hYc : Continuous Y := hGc.sub continuous_const
+  have hYB : ∀ x, |Y x| ≤ 2 * B := fun x => by
+    calc |Y x| ≤ |G x| + |m| := abs_sub _ _
+      _ ≤ 2 * B := by linarith [hGB x]
+  have hYint : ∫ x, Y x ∂μ = 0 := by
+    simp only [hY_def]
+    rw [integral_sub hGi (integrable_const m)]; simp [hm_def]
+  have hexpB : ∀ t x, |Real.exp (t * Y x)| ≤ Real.exp (|t| * (2 * B)) := by
+    intro t x
+    rw [abs_of_pos (Real.exp_pos _)]
+    refine Real.exp_le_exp.mpr ?_
+    calc t * Y x ≤ |t * Y x| := le_abs_self _
+      _ = |t| * |Y x| := abs_mul _ _
+      _ ≤ |t| * (2 * B) := by gcongr; exact hYB x
+  have hint : ∀ t : ℝ, Integrable (fun x => Real.exp (t * Y x)) μ := fun t =>
+    integrable_of_abs_le (by fun_prop) (hexpB t)
+  set H : ℝ → ℝ := mgf Y μ with hH_def
+  have hset : integrableExpSet Y μ = Set.univ := Set.eq_univ_of_forall hint
+  have hH' : ∀ t, HasDerivAt H (∫ x, Y x * Real.exp (t * Y x) ∂μ) t := fun t =>
+    hasDerivAt_mgf (by rw [hset, interior_univ]; exact Set.mem_univ t)
+  have hHpos : ∀ t, 0 < H t := fun t => mgf_pos (hint t)
+  set κ := L ^ 2 / (2 * c) with hκ_def
+  -- The LSI applied to `exp (t Y / 2)`.
+  have hLSI : ∀ t, t * (∫ x, Y x * Real.exp (t * Y x) ∂μ) - H t * Real.log (H t) ≤
+      κ * t ^ 2 * H t := by
+    intro t
+    set f : E → ℝ := fun x => Real.exp (t * Y x / 2) with hf_def
+    have hfd : ∀ x,
+        HasFDerivAt f (Real.exp (t * Y x / 2) • ((t / 2) • fderiv ℝ G x)) x := by
+      intro x
+      have h1 : HasFDerivAt (fun x => t * Y x / 2) ((t / 2) • fderiv ℝ G x) x := by
+        have := ((hG x).hasFDerivAt.sub_const m).const_mul (t / 2)
+        convert this using 1
+        funext y; simp only [hY_def]; ring
+      exact h1.exp
+    have hf : Differentiable ℝ f := fun x => (hfd x).differentiableAt
+    have hf2 : ∀ x, f x ^ 2 = Real.exp (t * Y x) := by
+      intro x; simp only [hf_def]; rw [sq, ← Real.exp_add]; ring_nf
+    have hf2i : Integrable (fun x => f x ^ 2) μ := by
+      simp_rw [hf2]; exact hint t
+    have hlogb : ∀ x, |f x ^ 2 * Real.log (f x ^ 2)| ≤
+        Real.exp (|t| * (2 * B)) * (|t| * (2 * B)) := by
+      intro x
+      rw [hf2, Real.log_exp, abs_mul]
+      refine mul_le_mul (hexpB t x) ?_ (abs_nonneg _) (by positivity)
+      rw [abs_mul]; gcongr; exact hYB x
+    have hf2log : Integrable (fun x => f x ^ 2 * Real.log (f x ^ 2)) μ :=
+      integrable_of_abs_le (by fun_prop) hlogb
+    have hgradb : ∀ x, ‖fderiv ℝ f x‖ ^ 2 ≤ t ^ 2 * L ^ 2 / 4 * Real.exp (t * Y x) := by
+      intro x
+      rw [(hfd x).fderiv, norm_smul, norm_smul, Real.norm_eq_abs, Real.norm_eq_abs,
+        abs_of_pos (Real.exp_pos _)]
+      have hL0 : 0 ≤ L := (norm_nonneg _).trans (hGL x)
+      have h1 : Real.exp (t * Y x / 2) * (|t / 2| * ‖fderiv ℝ G x‖) ≤
+          Real.exp (t * Y x / 2) * (|t / 2| * L) := by
+        gcongr; exact hGL x
+      have h2 : (Real.exp (t * Y x / 2) * (|t / 2| * L)) ^ 2 =
+          t ^ 2 * L ^ 2 / 4 * Real.exp (t * Y x) := by
+        rw [mul_pow, mul_pow, sq_abs, ← Real.exp_nat_mul]; push_cast; ring_nf
+      calc (Real.exp (t * Y x / 2) * (|t / 2| * ‖fderiv ℝ G x‖)) ^ 2
+          ≤ (Real.exp (t * Y x / 2) * (|t / 2| * L)) ^ 2 :=
+            pow_le_pow_left₀ (by positivity) h1 2
+        _ = _ := h2
+    have hgradi : Integrable (fun x => ‖fderiv ℝ f x‖ ^ 2) μ := by
+      refine ((hint t).const_mul (t ^ 2 * L ^ 2 / 4)).mono' ?_ (ae_of_all _ fun x => ?_)
+      · exact ((measurable_fderiv ℝ f).norm.pow_const 2).aestronglyMeasurable
+      · rw [Real.norm_eq_abs, abs_of_nonneg (by positivity)]; exact hgradb x
+    have hL := h_lsi.entropy_le hf hf2i hf2log hgradi
+    have hEnt : entropy μ (fun x => f x ^ 2) =
+        t * (∫ x, Y x * Real.exp (t * Y x) ∂μ) - H t * Real.log (H t) := by
+      simp only [entropy]
+      simp_rw [hf2, Real.log_exp]
+      have : (fun x => Real.exp (t * Y x) * (t * Y x)) =
+          fun x => t * (Y x * Real.exp (t * Y x)) := by
+        funext x; ring
+      rw [this, integral_const_mul]
+      rfl
+    have hgrad_int : ∫ x, ‖fderiv ℝ f x‖ ^ 2 ∂μ ≤ t ^ 2 * L ^ 2 / 4 * H t := by
+      calc ∫ x, ‖fderiv ℝ f x‖ ^ 2 ∂μ
+          ≤ ∫ x, t ^ 2 * L ^ 2 / 4 * Real.exp (t * Y x) ∂μ :=
+            integral_mono hgradi ((hint t).const_mul _) hgradb
+        _ = t ^ 2 * L ^ 2 / 4 * H t := by rw [integral_const_mul]; rfl
+    rw [hEnt] at hL
+    calc t * (∫ x, Y x * Real.exp (t * Y x) ∂μ) - H t * Real.log (H t)
+        ≤ 2 / c * ∫ x, ‖fderiv ℝ f x‖ ^ 2 ∂μ := hL
+      _ ≤ 2 / c * (t ^ 2 * L ^ 2 / 4 * H t) := by gcongr
+      _ = κ * t ^ 2 * H t := by rw [hκ_def]; field_simp; ring
+  -- `u(t) = log H(t) / t - κ t` is antitone on `(0, ∞)`.
+  set Λ : ℝ → ℝ := fun t => Real.log (H t) with hΛ_def
+  have hΛ' : ∀ t, HasDerivAt Λ ((∫ x, Y x * Real.exp (t * Y x) ∂μ) / H t) t :=
+    fun t => (hH' t).log (hHpos t).ne'
+  set u : ℝ → ℝ := fun t => Λ t / t - κ * t with hu_def
+  have hu' : ∀ t, 0 < t → HasDerivAt u
+      (((∫ x, Y x * Real.exp (t * Y x) ∂μ) / H t * t - Λ t * 1) / t ^ 2 - κ * 1) t := by
+    intro t ht
+    exact ((hΛ' t).div (hasDerivAt_id t) ht.ne').sub ((hasDerivAt_id t).const_mul κ)
+  have hu'_nonpos : ∀ t, 0 < t →
+      ((∫ x, Y x * Real.exp (t * Y x) ∂μ) / H t * t - Λ t * 1) / t ^ 2 - κ * 1 ≤ 0 := by
+    intro t ht
+    have hHt := hHpos t
+    have h1 := hLSI t
+    have h2 : (∫ x, Y x * Real.exp (t * Y x) ∂μ) / H t * t - Λ t ≤ κ * t ^ 2 := by
+      have : (∫ x, Y x * Real.exp (t * Y x) ∂μ) / H t * t - Λ t =
+          (t * (∫ x, Y x * Real.exp (t * Y x) ∂μ) - H t * Real.log (H t)) / H t := by
+        simp only [hΛ_def]; field_simp; ring_nf
+      rw [this, div_le_iff₀ hHt]; linarith
+    rw [mul_one, mul_one, sub_nonpos, div_le_iff₀ (by positivity)]
+    linarith
+  have hanti : AntitoneOn u (Set.Ioi 0) := by
+    refine antitoneOn_of_deriv_nonpos (convex_Ioi 0) ?_ ?_ ?_
+    · exact fun t ht => (hu' t ht).continuousAt.continuousWithinAt
+    · rw [interior_Ioi]; exact fun t ht => (hu' t ht).differentiableAt.differentiableWithinAt
+    · rw [interior_Ioi]
+      intro t ht
+      rw [(hu' t ht).deriv]
+      exact hu'_nonpos t ht
+  -- `u(t) → 0` as `t → 0⁺`.
+  have hlim : Filter.Tendsto u (nhdsWithin 0 (Set.Ioi 0)) (nhds 0) := by
+    have hΛ0 : Λ 0 = 0 := by simp [hΛ_def, hH_def]
+    have hd0 : (∫ x, Y x * Real.exp (0 * Y x) ∂μ) / H 0 = 0 := by
+      simp [hYint]
+    have h1 := (hΛ' 0).tendsto_slope_zero_right
+    rw [hd0] at h1
+    have h2 : Filter.Tendsto (fun t : ℝ => κ * t) (nhdsWithin 0 (Set.Ioi 0)) (nhds 0) := by
+      have := ((continuous_const_mul κ).tendsto 0).mono_left
+        (nhdsWithin_le_nhds (s := Set.Ioi 0))
+      simpa using this
+    have := h1.sub h2
+    rw [sub_zero] at this
+    refine this.congr fun t => ?_
+    simp only [hu_def, zero_add, hΛ0, sub_zero, smul_eq_mul]
+    ring
+  have hus : u s ≤ 0 := by
+    refine ge_of_tendsto hlim ?_
+    filter_upwards [Ioo_mem_nhdsGT hs] with r hr
+    exact hanti hr.1 (Set.mem_Ioi.mpr hs) hr.2.le
+  have hlog : Real.log (H s) ≤ κ * s ^ 2 := by
+    have : Λ s / s ≤ κ * s := by simp only [hu_def] at hus; linarith
+    rw [div_le_iff₀ hs] at this
+    simp only [hΛ_def] at this
+    nlinarith
+  calc mgf (fun x => G x - ∫ y, G y ∂μ) μ s = H s := rfl
+    _ = Real.exp (Real.log (H s)) := (Real.exp_log (hHpos s)).symm
+    _ ≤ Real.exp (κ * s ^ 2) := Real.exp_le_exp.mpr hlog
+    _ = Real.exp (L ^ 2 * s ^ 2 / (2 * c)) := by rw [hκ_def]; ring_nf
+
+/-- **Herbst's argument, bounded smooth case, all `s`.** -/
+theorem mgf_le_of_lsi_of_bounded
+    {μ : Measure E} [IsProbabilityMeasure μ] {c : ℝ} (h_lsi : SatisfiesLSI μ c)
+    {G : E → ℝ} (hG : Differentiable ℝ G) {B : ℝ} (hGB : ∀ x, |G x| ≤ B)
+    {L : ℝ} (hGL : ∀ x, ‖fderiv ℝ G x‖ ≤ L) (s : ℝ) :
+    mgf (fun x => G x - ∫ y, G y ∂μ) μ s ≤ Real.exp (L ^ 2 * s ^ 2 / (2 * c)) := by
+  rcases lt_trichotomy s 0 with hs | rfl | hs
+  · have h := mgf_le_of_lsi_of_bounded_of_pos h_lsi hG.neg (G := fun x => -G x)
+      (fun x => by rw [abs_neg]; exact hGB x)
+      (fun x => by
+        have : (fun x => -G x) = -G := rfl
+        rw [this, fderiv_neg, norm_neg]; exact hGL x) (neg_pos.mpr hs)
+    have : mgf (fun x => -G x - ∫ y, -G y ∂μ) μ (-s) =
+        mgf (fun x => G x - ∫ y, G y ∂μ) μ s := by
+      simp only [mgf, integral_neg]
+      congr 1; funext x; ring_nf
+    rw [this, neg_sq] at h
+    exact h
+  · simp
+  · exact mgf_le_of_lsi_of_bounded_of_pos h_lsi hG hGB hGL hs
+
+/-- **Herbst's lemma (MGF bound from LSI).** For a measure `μ` on a
+finite-dimensional inner-product space satisfying a log-Sobolev inequality
+with constant `c > 0`, every integrable `L`-Lipschitz `F` has a sub-Gaussian
+centred moment-generating function:
+
+  `E_μ exp (t (F − E_μ F)) ≤ exp (L² t² / (2c))`.
+
+Proof: for bounded smooth `G` with `‖∇G‖ ≤ L`, the LSI applied to
+`exp (t G / 2)` gives `t H'(t) − H log H ≤ (L² t² / (2c)) H` for
+`H = mgf (G − E G)`; hence `t ↦ log H(t)/t − L² t / (2c)` is antitone on
+`(0, ∞)` with limit `0` at `0⁺`. A general Lipschitz `F` is approximated by
+mollified truncations, and Fatou's lemma passes the bound to the limit
+(which also yields the exponential integrability).
+
+Reference: Bakry, Gentil, Ledoux, *Analysis and Geometry of Markov
+Diffusion Operators*, Springer, 2014, Proposition 5.4.1; Ledoux (2001) §1. -/
+theorem herbst_mgf_bound
     {μ : Measure E} [IsProbabilityMeasure μ] {c : ℝ}
     (h_lsi : SatisfiesLSI μ c)
     {F : E → ℝ} {L : ℝ≥0} (hF_lip : LipschitzWith L F)
     (hF_int : Integrable F μ) (t : ℝ) :
     Integrable (fun x => Real.exp (t * (F x - ∫ y, F y ∂μ))) μ ∧
     mgf (fun x => F x - ∫ y, F y ∂μ) μ t
-      ≤ Real.exp ((L : ℝ) ^ 2 * t ^ 2 / (2 * c))
+      ≤ Real.exp ((L : ℝ) ^ 2 * t ^ 2 / (2 * c)) := by
+  have hFc : Continuous F := hF_lip.continuous
+  -- Truncate `F` to `[-(n+1), n+1]` and mollify at scale `1/(n+1)`.
+  set T : ℕ → E → ℝ := fun n x => max (min (F x) ((n : ℝ) + 1)) (-((n : ℝ) + 1))
+    with hT_def
+  have hTlip : ∀ n, LipschitzWith L (T n) := fun n =>
+    (hF_lip.min_const _).max_const _
+  have hTb : ∀ n x, |T n x| ≤ (n : ℝ) + 1 := by
+    intro n x; simp only [hT_def]; rw [abs_le]
+    constructor
+    · exact le_max_right _ _
+    · exact max_le (min_le_right _ _) (by linarith)
+  have hTle : ∀ n x, |T n x| ≤ |F x| := by
+    intro n x
+    simp only [hT_def]
+    rw [abs_le]
+    constructor
+    · rcases le_total (F x) ((n : ℝ) + 1) with h | h
+      · rw [min_eq_left h]
+        exact le_max_of_le_left (neg_abs_le _)
+      · rw [min_eq_right h]
+        exact le_max_of_le_left
+          (by linarith [abs_nonneg (F x), (Nat.cast_nonneg n : (0 : ℝ) ≤ n)])
+    · refine max_le ?_ ?_
+      · exact (min_le_left _ _).trans (le_abs_self _)
+      · linarith [abs_nonneg (F x)]
+  have hTlim : ∀ x, ∀ᶠ n : ℕ in Filter.atTop, T n x = F x := by
+    intro x
+    obtain ⟨N, hN⟩ := exists_nat_ge |F x|
+    filter_upwards [Filter.eventually_ge_atTop N] with n hn
+    have h1 : |F x| ≤ (n : ℝ) + 1 := by
+      have : (N : ℝ) ≤ n := by exact_mod_cast hn
+      linarith
+    simp only [hT_def]
+    rw [min_eq_left (le_of_abs_le h1), max_eq_left (neg_le_of_abs_le h1)]
+  have happrox : ∀ n : ℕ, ∃ G : E → ℝ, Differentiable ℝ G ∧
+      (∀ x, |G x| ≤ (n : ℝ) + 1) ∧ (∀ x, ‖fderiv ℝ G x‖ ≤ L) ∧
+      ∀ x, |G x - T n x| ≤ L * (1 / ((n : ℝ) + 1)) := fun n =>
+    exists_differentiable_approx_of_lipschitz (hTlip n) (hTb n) (by positivity)
+  choose G hGd hGb hGL hGT using happrox
+  have hGm : ∀ n, Measurable (G n) := fun n => (hGd n).continuous.measurable
+  have hGF : ∀ x, Filter.Tendsto (fun n => G n x) Filter.atTop (nhds (F x)) := by
+    intro x
+    have h1 : Filter.Tendsto (fun n : ℕ => (L : ℝ) * (1 / ((n : ℝ) + 1))) Filter.atTop
+        (nhds 0) := by
+      simpa using tendsto_one_div_add_atTop_nhds_zero_nat.const_mul (L : ℝ)
+    have h2 : Filter.Tendsto (fun n => G n x - T n x) Filter.atTop (nhds 0) :=
+      squeeze_zero_norm (fun n => by rw [Real.norm_eq_abs]; exact hGT n x) h1
+    have h3 : Filter.Tendsto (fun n => T n x) Filter.atTop (nhds (F x)) :=
+      tendsto_const_nhds.congr' (Filter.EventuallyEq.symm (hTlim x))
+    have := h2.add h3
+    simpa using this
+  have hGdom : ∀ n x, |G n x| ≤ |F x| + L := by
+    intro n x
+    have h1 : (L : ℝ) * (1 / ((n : ℝ) + 1)) ≤ L := by
+      have : 1 / ((n : ℝ) + 1) ≤ 1 := by
+        rw [div_le_one (by positivity)]; linarith [(n.cast_nonneg : (0 : ℝ) ≤ n)]
+      calc (L : ℝ) * (1 / ((n : ℝ) + 1)) ≤ L * 1 := by gcongr
+        _ = L := mul_one _
+    calc |G n x| = |(G n x - T n x) + T n x| := by ring_nf
+      _ ≤ |G n x - T n x| + |T n x| := abs_add_le _ _
+      _ ≤ |F x| + L := by linarith [hGT n x, hTle n x]
+  -- Means converge.
+  have hmean : Filter.Tendsto (fun n => ∫ y, G n y ∂μ) Filter.atTop
+      (nhds (∫ y, F y ∂μ)) :=
+    tendsto_integral_of_dominated_convergence (fun x => |F x| + L)
+      (fun n => (hGm n).aestronglyMeasurable) (hF_int.abs.add (integrable_const _))
+      (fun n => ae_of_all _ fun x => by rw [Real.norm_eq_abs]; exact hGdom n x)
+      (ae_of_all _ hGF)
+  -- Pointwise convergence of the exponentials.
+  set e : ℕ → E → ℝ := fun n x => Real.exp (t * (G n x - ∫ y, G n y ∂μ)) with he_def
+  set eF : E → ℝ := fun x => Real.exp (t * (F x - ∫ y, F y ∂μ)) with heF_def
+  have he_lim : ∀ x, Filter.Tendsto (fun n => e n x) Filter.atTop (nhds (eF x)) := by
+    intro x
+    exact (Real.continuous_exp.tendsto _).comp
+      (((hGF x).sub hmean).const_mul t)
+  have he_bound : ∀ n, mgf (fun x => G n x - ∫ y, G n y ∂μ) μ t ≤
+      Real.exp ((L : ℝ) ^ 2 * t ^ 2 / (2 * c)) := fun n =>
+    mgf_le_of_lsi_of_bounded h_lsi (hGd n) (hGb n) (hGL n) t
+  have he_int : ∀ n, Integrable (e n) μ := fun n =>
+    integrable_of_abs_le (by simp only [he_def]; fun_prop)
+      (C := Real.exp (|t| * (2 * ((n : ℝ) + 1)))) fun x => by
+        rw [abs_of_pos (Real.exp_pos _)]
+        refine Real.exp_le_exp.mpr ?_
+        have hm : |∫ y, G n y ∂μ| ≤ (n : ℝ) + 1 := by
+          calc |∫ y, G n y ∂μ| ≤ ∫ y, |G n y| ∂μ := abs_integral_le_integral_abs
+            _ ≤ ∫ _, ((n : ℝ) + 1) ∂μ :=
+                integral_mono (integrable_of_abs_le (hGm n) (hGb n)).abs
+                  (integrable_const _) (hGb n)
+            _ = (n : ℝ) + 1 := by simp
+        calc t * (G n x - ∫ y, G n y ∂μ)
+            ≤ |t * (G n x - ∫ y, G n y ∂μ)| := le_abs_self _
+          _ = |t| * |G n x - ∫ y, G n y ∂μ| := abs_mul _ _
+          _ ≤ |t| * (2 * ((n : ℝ) + 1)) := by
+              gcongr
+              calc |G n x - ∫ y, G n y ∂μ| ≤ |G n x| + |∫ y, G n y ∂μ| := abs_sub _ _
+                _ ≤ 2 * ((n : ℝ) + 1) := by linarith [hGb n x]
+  -- Fatou.
+  have heFm : Measurable eF := by simp only [heF_def]; fun_prop
+  have hfatou : ∫⁻ x, ENNReal.ofReal (eF x) ∂μ ≤
+      ENNReal.ofReal (Real.exp ((L : ℝ) ^ 2 * t ^ 2 / (2 * c))) := by
+    calc ∫⁻ x, ENNReal.ofReal (eF x) ∂μ
+        = ∫⁻ x, Filter.liminf (fun n => ENNReal.ofReal (e n x)) Filter.atTop ∂μ := by
+          refine lintegral_congr fun x => ?_
+          exact ((ENNReal.continuous_ofReal.tendsto _).comp (he_lim x)).liminf_eq.symm
+      _ ≤ Filter.liminf (fun n => ∫⁻ x, ENNReal.ofReal (e n x) ∂μ) Filter.atTop :=
+          lintegral_liminf_le fun n => ENNReal.measurable_ofReal.comp
+            (by simp only [he_def]; fun_prop)
+      _ ≤ ENNReal.ofReal (Real.exp ((L : ℝ) ^ 2 * t ^ 2 / (2 * c))) := by
+          refine Filter.liminf_le_of_frequently_le' (Filter.Frequently.of_forall fun n => ?_)
+          rw [← ofReal_integral_eq_lintegral_ofReal (he_int n)
+            (ae_of_all _ fun x => (Real.exp_pos _).le)]
+          exact ENNReal.ofReal_le_ofReal (he_bound n)
+  have hint : Integrable eF μ := by
+    refine ⟨heFm.aestronglyMeasurable, ?_⟩
+    rw [hasFiniteIntegral_iff_ofReal (ae_of_all _ fun x => (Real.exp_pos _).le)]
+    exact hfatou.trans_lt ENNReal.ofReal_lt_top
+  refine ⟨hint, ?_⟩
+  calc mgf (fun x => F x - ∫ y, F y ∂μ) μ t = ∫ x, eF x ∂μ := rfl
+    _ = (∫⁻ x, ENNReal.ofReal (eF x) ∂μ).toReal :=
+        integral_eq_lintegral_of_nonneg_ae (ae_of_all _ fun x => (Real.exp_pos _).le)
+          heFm.aestronglyMeasurable
+    _ ≤ Real.exp ((L : ℝ) ^ 2 * t ^ 2 / (2 * c)) :=
+        ENNReal.toReal_le_of_le_ofReal (Real.exp_pos _).le hfatou
+
+end Herbst
 
 /-- **Borell-Herbst concentration from LSI (theorem).**
 
@@ -109,8 +461,8 @@ For `μ` satisfying LSI with constant `c > 0` and an `L`-Lipschitz `F`:
 
   μ({x : F x − E_μ F > t}) ≤ exp(−c · t² / (2 L²)).
 
-Derived from `herbst_mgf_bound` (the textbook axiom) by Chernoff
-optimization. The optimal multiplier in the Chernoff bound is
+Derived from `herbst_mgf_bound` by Chernoff optimization. The optimal
+multiplier in the Chernoff bound is
 `τ = c · t / L²`, which substitutes into the MGF bound
 `mgf X μ τ ≤ exp(L² τ² / (2 c))` to give the optimized exponent. -/
 theorem lipschitz_concentration_of_lsi
@@ -174,9 +526,9 @@ theorem lipschitz_concentration_of_lsi
 
 /-- **Left-tail concentration.**
 
-Direct application of the axiom to `-F`: `μ({x : F x − E_μ F < −t}) ≤
+Direct application of `lipschitz_concentration_of_lsi` to `-F`: `μ({x : F x − E_μ F < −t}) ≤
 exp(−c · t² / (2 L²))`. The factor-of-2 two-sided bound is obtained
-by combining this with the right-tail axiom via the union bound,
+by combining this with the right-tail bound via the union bound,
 and is left to the caller. -/
 theorem lipschitz_concentration_left_of_lsi
     {E : Type*}
@@ -360,14 +712,6 @@ variable {E : Type*}
     [NormedAddCommGroup E] [InnerProductSpace ℝ E]
     [MeasurableSpace E] [BorelSpace E] [FiniteDimensional ℝ E]
 
-omit [NormedAddCommGroup E] [InnerProductSpace ℝ E] [BorelSpace E]
-  [FiniteDimensional ℝ E] in
-/-- A bounded measurable real function is integrable for a probability measure. -/
-lemma integrable_of_abs_le {μ : Measure E} [IsProbabilityMeasure μ] {F : E → ℝ}
-    (hF : Measurable F) {C : ℝ} (hC : ∀ x, |F x| ≤ C) : Integrable F μ :=
-  Integrable.of_bound hF.aestronglyMeasurable C
-    (ae_of_all _ fun x => by rw [Real.norm_eq_abs]; exact hC x)
-
 /-- **LSI ⇒ Poincaré for bounded functions** (linearization of the LSI at
 the constant `1`). -/
 theorem variance_le_of_lsi_of_abs_le
@@ -464,7 +808,8 @@ theorem variance_le_of_lsi_of_abs_le
       fun_prop
     have hphii : Integrable (fun x => h x ^ 2 * Real.log (h x ^ 2)) μ :=
       integrable_of_abs_le hphim hphib
-    have hgrad_h : (fun x => ‖fderiv ℝ h x‖ ^ 2) = fun x => ε ^ 2 * ‖fderiv ℝ g x‖ ^ 2 := by
+    have hgrad_h :
+        (fun x => ‖fderiv ℝ h x‖ ^ 2) = fun x => ε ^ 2 * ‖fderiv ℝ g x‖ ^ 2 := by
       funext x; rw [hfd, norm_smul, Real.norm_eq_abs, abs_of_pos hε]; ring
     have hgradi : Integrable (fun x => ‖fderiv ℝ h x‖ ^ 2) μ := by
       rw [hgrad_h]; exact hgrad_int.const_mul _
