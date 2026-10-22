@@ -8,8 +8,8 @@ Discharges the per-instance hypotheses of `gross_lsi_implies_hypercontractive_of
 (`CoreSemigroupInvariant`, `GeneratorCompat`, `StroockVaropoulos`, `CoreLpL2Approx`)
 for the multivariate standard Gaussian Bakry-Émery bundle
 `stdGaussianFin_dirichletMarkovSemigroup`, and assembles the resulting
-hypercontractivity statement. This eliminates the `gross_lsi_implies_hypercontractive`
-axiom from the downstream `gaussian-hilbert` chain.
+hypercontractivity statement, without the former hypothesis-free axiom
+`gross_lsi_implies_hypercontractive` (which was false and has been removed).
 -/
 
 import MarkovSemigroups.Abstract.GrossODE
@@ -471,8 +471,8 @@ theorem stdGaussianFin_satisfiesLogSobolev (n : ℕ) :
 Assembles the LSI with the four discharged hypotheses
 (`CoreSemigroupInvariant`, `GeneratorCompat`, `StroockVaropoulos`, `CoreLpL2Approx`)
 through the *proved* theorem `gross_lsi_implies_hypercontractive_of_hypotheses`.
-Crucially this does **not** use the `gross_lsi_implies_hypercontractive` axiom, so
-it eliminates that axiom from the downstream `gaussian-hilbert` chain. -/
+It does **not** use the former hypothesis-free axiom
+`gross_lsi_implies_hypercontractive` (false; removed). -/
 theorem stdGaussianFin_isHypercontractive (n : ℕ) :
     (stdGaussianFin_dirichletMarkovSemigroup n).toMarkovSemigroup.IsHypercontractive 1 :=
   gross_lsi_implies_hypercontractive_of_hypotheses

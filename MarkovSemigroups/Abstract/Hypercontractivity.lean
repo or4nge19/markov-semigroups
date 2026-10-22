@@ -22,12 +22,14 @@ equivalence with the log-Sobolev inequality.
   when `q ≤ 1 + (p − 1) e^{2ρt}`, formulated with an `L²` source plus
   an explicit `MemLp` hypothesis for the input `L^p` exponent.
 
-## Main results (postulated as textbook axioms)
+## Main results
 
-- `gross_lsi_implies_hypercontractive` — LSI for the bundled form ⇒
-  hypercontractivity of the bundled semigroup.
-- `gross_hypercontractive_implies_lsi` — converse.
-- `gross_equivalence` — LSI ⇔ hypercontractivity.
+- `DirichletMarkovSemigroup.not_forall_lsi_implies_hypercontractive` —
+  LSI alone does **not** imply hypercontractivity for the bundled
+  structure (the core may be too small); the forward direction with its
+  core hypotheses is `gross_lsi_implies_hypercontractive_of_hypotheses`
+  in `MarkovSemigroups.Abstract.GrossODE`.
+- `gross_hypercontractive_implies_lsi` — hypercontractivity ⇒ LSI.
 
 ## Why bundle?
 
@@ -57,6 +59,7 @@ algebra.
 import MarkovSemigroups.Abstract.DirichletForm
 import Mathlib.Analysis.InnerProductSpace.Adjoint
 import Mathlib.MeasureTheory.Function.L2Space
+import Mathlib.Probability.Distributions.Uniform
 
 open MeasureTheory ENNReal Set
 open scoped ENNReal InnerProductSpace
@@ -627,28 +630,126 @@ axiom stroock_varopoulos {X : Type*} [MeasurableSpace X]
       D.energy (fun x => f x ^ (p / 2)) (fun x => f x ^ (p / 2)) ≤
     D.energy f (fun x => f x ^ (p - 1))
 
-/-! ## Gross's theorem (postulated as textbook axioms) -/
+/-! ## Gross's theorem -/
 
-/-- **Postulated (Gross 1975, Theorem 1).** LSI implies
-hypercontractivity for the bundled `L²(μ)` semigroup.
+/-! ### The forward implication needs core hypotheses
 
-The proof uses the semigroup interpolation method: differentiate
-`‖P_t f‖_{L^{q(t)}}` along `q(t) = 1 + (p − 1) e^{2ρt}` and show the
-derivative is `≤ 0` via LSI applied to `|f|^{q/2}`. The Dirichlet form
-enters through the compatibility field `energy_eq_deriv`, with
-Stroock–Varopoulos supplying the key energy comparison.
+Gross's forward direction (LSI ⇒ hypercontractivity) is **false** for a
+bare `DirichletMarkovSemigroup`: the structure ties the form to the
+semigroup only on the core, and nothing forces the core to be large.
+On `Bool` with the uniform measure, the identity semigroup with the
+zero form on the constants satisfies LSI for every `ρ > 0`, while
+`P_1 = id` is not a contraction `L² → L⁴`
+(`DirichletMarkovSemigroup.not_forall_lsi_implies_hypercontractive`).
+The former axiom `gross_lsi_implies_hypercontractive` therefore proved
+`False`; it is removed. The correct statement carries the core
+hypotheses (`CoreSemigroupInvariant`, `GeneratorCompat`,
+`StroockVaropoulos`, `CoreLpL2Approx`) and is the proved theorem
+`gross_lsi_implies_hypercontractive_of_hypotheses`
+(`MarkovSemigroups.Abstract.GrossODE`). -/
 
-**Note on `hρ`**: the explicit `0 < ρ` hypothesis is required to
-firewall against a soundness trap. `SatisfiesLogSobolev D ρ` is
-**trivially true** for `ρ ≤ 0` (the LSI inequality `ρ · Ent(f²) ≤ 2 · E(f, f)`
-has LHS `≤ 0` and RHS `≥ 0`), while `IsHypercontractive` bakes in
-`0 < ρ`. Without `hρ` the axiom would prove `0 < ρ` from a vacuous
-hypothesis (i.e. `0 < ρ` for any `ρ`), yielding `False`. Flagged by
-gemini-3.1-pro-preview 2026-05-13 re-vet of the Lp-carrier refactor. -/
-axiom gross_lsi_implies_hypercontractive {X : Type*} [MeasurableSpace X]
-    (D : DirichletMarkovSemigroup X) (ρ : ℝ) (hρ : 0 < ρ)
-    (h_lsi : D.SatisfiesLogSobolev ρ) :
-    D.toMarkovSemigroup.IsHypercontractive ρ
+namespace MarkovSemigroup
+
+variable {X : Type*} [MeasurableSpace X]
+
+/-- The identity semigroup `P_t = id` on `L²(μ)`: a symmetric Markov
+semigroup for any probability measure `μ`. -/
+def identity (μ : Measure X) [IsProbabilityMeasure μ] : MarkovSemigroup X where
+  μ := μ
+  hμ := inferInstance
+  P := fun _ => ContinuousLinearMap.id ℝ _
+  P_zero := rfl
+  P_semigroup := fun _ _ _ _ => rfl
+  P_strong_cont := fun _ => tendsto_const_nhds
+  P_contraction := fun _ _ => ContinuousLinearMap.norm_id_le
+  P_conservation := fun _ _ _ _ => rfl
+  P_positivity := fun _ _ _ hf => hf
+  P_symmetric := fun _ _ _ _ => rfl
+
+end MarkovSemigroup
+
+namespace DirichletMarkovSemigroup
+
+variable {X : Type*} [MeasurableSpace X]
+
+/-- The identity semigroup with the zero form on the core of constant
+functions. All fields of `DirichletMarkovSemigroup` hold. -/
+def constCore (μ : Measure X) [IsProbabilityMeasure μ] :
+    DirichletMarkovSemigroup X where
+  toMarkovSemigroup := MarkovSemigroup.identity μ
+  energy := fun _ _ => 0
+  energy_symm := fun _ _ => rfl
+  energy_nonneg := fun _ => le_rfl
+  IsCore := fun f => ∃ c : ℝ, f = fun _ => c
+  IsCore_const := fun c => ⟨c, rfl⟩
+  IsCore_add := by
+    rintro f g ⟨a, rfl⟩ ⟨b, rfl⟩
+    exact ⟨a + b, rfl⟩
+  IsCore_smul := by
+    rintro c f ⟨a, rfl⟩
+    exact ⟨c * a, rfl⟩
+  IsCore_rpow_pos_strict := by
+    rintro f ⟨a, rfl⟩ ε - - r
+    exact ⟨a ^ r, rfl⟩
+  IsCore_memLp_top := by
+    rintro f ⟨a, rfl⟩
+    exact ⟨|a|, ae_of_all _ fun _ => le_rfl⟩
+  energy_add_left := fun _ _ _ _ _ _ => by simp
+  energy_smul_left := fun _ _ _ _ _ => by simp
+  energy_const := fun _ => rfl
+  IsCore_memLp := by
+    rintro f ⟨a, rfl⟩
+    exact memLp_const a
+  energy_eq_deriv := fun f g hf hg => by
+    simp only [neg_zero, MarkovSemigroup.identity]
+    apply hasDerivWithinAt_const
+
+/-- `constCore μ` satisfies the log-Sobolev inequality for every `ρ > 0`:
+its core functions are constant, with zero entropy. -/
+theorem constCore_satisfiesLogSobolev (μ : Measure X) [IsProbabilityMeasure μ]
+    {ρ : ℝ} (hρ : 0 < ρ) : (constCore μ).SatisfiesLogSobolev ρ := by
+  refine ⟨hρ, ?_⟩
+  rintro f ⟨a, rfl⟩
+  have h0 : (constCore μ).energy (fun _ => a) (fun _ => a) = 0 := rfl
+  change DirichletSpace.entropy (ds := (constCore μ).toDirichletSpace) _ ≤
+    2 / ρ * (constCore μ).energy (fun _ => a) (fun _ => a)
+  rw [h0]
+  simp [DirichletSpace.entropy]
+
+/-- **LSI does not imply hypercontractivity for a bare
+`DirichletMarkovSemigroup`.** On `Bool` with the uniform measure,
+`constCore` satisfies LSI with `ρ = 1`, but `P_1 = id` maps the
+indicator of `{true}` (with `‖·‖_{L²} = 2^{-1/2}`) to itself, whose
+`L⁴` norm `2^{-1/4}` is larger. -/
+theorem not_forall_lsi_implies_hypercontractive :
+    ¬ ∀ (D : DirichletMarkovSemigroup Bool) (ρ : ℝ), 0 < ρ →
+      D.SatisfiesLogSobolev ρ → D.toMarkovSemigroup.IsHypercontractive ρ := by
+  intro h
+  set μ : Measure Bool := (PMF.uniformOfFintype Bool).toMeasure
+  have hHC :=
+    (h (constCore μ) 1 one_pos (constCore_satisfiesLogSobolev μ one_pos)).2
+  set s : Set Bool := {true}
+  have hs : MeasurableSet s := measurableSet_singleton true
+  have hμs : μ s = 2⁻¹ := by
+    simp [μ, s, PMF.uniformOfFintype_apply]
+  set f : Lp ℝ 2 μ := indicatorConstLp 2 hs (measure_ne_top μ s) (1 : ℝ)
+  have hexp : (4 : ℝ) ≤ 1 + (2 - 1) * Real.exp (2 * 1 * 1) := by
+    have := Real.add_one_le_exp 2
+    norm_num at this ⊢
+    linarith
+  have key := hHC 2 4 1 one_lt_two (by norm_num) one_pos hexp f (by simp)
+  change eLpNorm (((f : Lp ℝ 2 μ)) : Bool → ℝ) (ENNReal.ofReal 4) μ ≤
+    eLpNorm ((f : Bool → ℝ)) (ENNReal.ofReal 2) μ at key
+  rw [eLpNorm_congr_ae indicatorConstLp_coeFn, eLpNorm_congr_ae indicatorConstLp_coeFn,
+    eLpNorm_indicator_const hs.nullMeasurableSet (by simp) (by simp),
+    eLpNorm_indicator_const hs.nullMeasurableSet (by simp) (by simp), hμs] at key
+  simp only [enorm_one, one_mul] at key
+  rw [ENNReal.toReal_ofReal (by norm_num), ENNReal.toReal_ofReal (by norm_num)] at key
+  have hlt : (2⁻¹ : ℝ≥0∞) ^ (1 / 2 : ℝ) < (2⁻¹ : ℝ≥0∞) ^ (1 / 4 : ℝ) :=
+    ENNReal.rpow_lt_rpow_of_exponent_gt (by simp) (by simp) (by norm_num)
+  exact absurd key (not_le.mpr hlt)
+
+end DirichletMarkovSemigroup
 
 /-- **Postulated (Gross 1975, Theorem 2).** Hypercontractivity of the
 bundled `L²(μ)` semigroup implies LSI for the bundled Dirichlet form.
@@ -662,7 +763,7 @@ axiom gross_hypercontractive_implies_lsi {X : Type*} [MeasurableSpace X]
 
 /-! ## H0 — hypothesis-parameterised Gross (Route A scaffold)
 
-The discharge route for `gross_lsi_implies_hypercontractive` keeps the
+The forward Gross implication (stated with the hypotheses below) keeps the
 abstract `DirichletMarkovSemigroup` (and its shipped sorry-free
 GaussianFin instance) **unchanged**: the strong-generator facts are
 explicit `Prop` hypotheses, not new structural fields — the same
@@ -758,24 +859,14 @@ target).** The predicates `CoreSemigroupInvariant` / `GeneratorCompat`
 hypercontractivity given those three; Gross's differentiation
 argument — Phases P2/P3 of `plans/gross-discharge.md`) are relocated
 to `MarkovSemigroups.Abstract.GrossODE` (which imports this file), so
-the heavy ODE scaffolding does not bloat this module. The existing
-`gross_lsi_implies_hypercontractive` axiom is retained (non-breaking —
-downstream `gaussian-hilbert` keeps compiling) until the relocated
-theorem is proved and the call-site is rewired. -/
+the heavy ODE scaffolding does not bloat this module. The former
+hypothesis-free axiom `gross_lsi_implies_hypercontractive` was false
+(`DirichletMarkovSemigroup.not_forall_lsi_implies_hypercontractive`)
+and has been removed. -/
 
 namespace DirichletMarkovSemigroup
 
 variable {X : Type*} [MeasurableSpace X]
-
-/-- Gross's theorem (forward direction): LSI ⇒ hypercontractivity.
-
-The `hρ : 0 < ρ` hypothesis firewalls the `ρ ≤ 0` soundness trap
-documented at `gross_lsi_implies_hypercontractive`. -/
-theorem hypercontractive_of_logSobolev (D : DirichletMarkovSemigroup X)
-    (ρ : ℝ) (hρ : 0 < ρ) (h_lsi : D.SatisfiesLogSobolev ρ) :
-    D.IsHypercontractive ρ := by
-  show D.toMarkovSemigroup.IsHypercontractive ρ
-  exact gross_lsi_implies_hypercontractive D ρ hρ h_lsi
 
 /-- Gross's theorem (reverse direction): hypercontractivity ⇒ LSI. -/
 theorem logSobolev_of_hypercontractive (D : DirichletMarkovSemigroup X)
@@ -783,15 +874,6 @@ theorem logSobolev_of_hypercontractive (D : DirichletMarkovSemigroup X)
     D.SatisfiesLogSobolev ρ := by
   change D.toMarkovSemigroup.IsHypercontractive ρ at h_hyp
   exact gross_hypercontractive_implies_lsi D ρ h_hyp
-
-/-- The Gross equivalence: LSI ↔ hypercontractivity for a
-`DirichletMarkovSemigroup`. The forward direction requires `0 < ρ`
-(see `hypercontractive_of_logSobolev`); the reverse derives `ρ > 0`
-from the `IsHypercontractive` predicate's built-in `0 < ρ` field. -/
-theorem gross_equivalence (D : DirichletMarkovSemigroup X) (ρ : ℝ) (hρ : 0 < ρ) :
-    D.SatisfiesLogSobolev ρ ↔ D.IsHypercontractive ρ :=
-  ⟨D.hypercontractive_of_logSobolev ρ hρ,
-   D.logSobolev_of_hypercontractive ρ⟩
 
 /-! ## Direct consequence: the semigroup improves integrability -/
 
