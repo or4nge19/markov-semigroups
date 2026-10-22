@@ -324,37 +324,410 @@ theorem lipschitz_concentration_two_sided_of_lsi
 
 /-! ### LSI ⇒ Poincaré → variance bound -/
 
-/-- **LSI implies Poincaré (textbook axiom).**
+section PoincareOfLSI
 
-`SatisfiesLSI μ c` implies the Poincaré inequality with the same
-constant: for every differentiable `f : E → ℝ` with `f, f²` integrable
-and `‖∇f‖²` integrable,
+/-- Second-order expansion of `u log u` at `u = 1` with a cubic remainder:
+`|(1 + x) log (1 + x) - x - x² / 2| ≤ 4 |x|³` for `|x| ≤ 1/2`. -/
+lemma abs_one_add_mul_log_one_add_sub_le {x : ℝ} (hx : |x| ≤ 1 / 2) :
+    |(1 + x) * Real.log (1 + x) - x - x ^ 2 / 2| ≤ 4 * |x| ^ 3 := by
+  have hx1 : |(-x)| < 1 := by rw [abs_neg]; linarith
+  have hlog := Real.abs_log_sub_add_sum_range_le hx1 2
+  simp only [Finset.sum_range_succ, Finset.sum_range_zero, abs_neg, sub_neg_eq_add] at hlog
+  set r := Real.log (1 + x) - (x - x ^ 2 / 2) with hr_def
+  have hden : (1 : ℝ) / 2 ≤ 1 - |x| := by linarith
+  have hr : |r| ≤ 2 * |x| ^ 3 := by
+    have h1 : |r| ≤ |x| ^ 3 / (1 - |x|) := by
+      convert hlog using 2
+      rw [hr_def]; push_cast; ring
+    calc |r| ≤ |x| ^ 3 / (1 - |x|) := h1
+      _ ≤ |x| ^ 3 / (1 / 2) := by
+          apply div_le_div_of_nonneg_left (by positivity) (by norm_num) hden
+      _ = 2 * |x| ^ 3 := by ring
+  have hexp : (1 + x) * Real.log (1 + x) - x - x ^ 2 / 2 = -x ^ 3 / 2 + (1 + x) * r := by
+    rw [hr_def]; ring
+  rw [hexp]
+  have h1x : |1 + x| ≤ 3 / 2 := by
+    calc |1 + x| ≤ |1| + |x| := abs_add_le _ _
+      _ ≤ 3 / 2 := by rw [abs_one]; linarith
+  calc |-x ^ 3 / 2 + (1 + x) * r| ≤ |-x ^ 3 / 2| + |(1 + x) * r| := abs_add_le _ _
+    _ = |x| ^ 3 / 2 + |1 + x| * |r| := by
+        rw [abs_mul, abs_div, abs_neg, abs_pow]; norm_num
+    _ ≤ |x| ^ 3 / 2 + 3 / 2 * (2 * |x| ^ 3) := by
+        gcongr
+    _ ≤ 4 * |x| ^ 3 := by nlinarith [pow_nonneg (abs_nonneg x) 3]
 
-  Var_μ(f) ≤ (1/c) · ∫ ‖∇f‖² dμ.
-
-Reference: Bakry, Gentil, Ledoux, *Analysis and Geometry of Markov
-Diffusion Operators*, Springer, 2014, Proposition 5.1.3.
-
-Strategy: linearize the LSI on `f = 1 + εg` and take ε → 0; the
-quadratic term yields exactly the Poincaré inequality. Equivalently,
-follows from `logSobolev_implies_poincare_bounded` in
-`Abstract/DirichletForm.lean` once a bridge between the thin
-`SatisfiesLSI` predicate and the Dirichlet-form `SatisfiesLogSobolev`
-is in place (see REFACTOR_NOTES §2).
-
-(NOT VERIFIED — axiom stands until peer review or formalization of
-the linearization argument / DirichletForm bridge.) -/
-axiom poincare_of_lsi
-    {E : Type*}
+variable {E : Type*}
     [NormedAddCommGroup E] [InnerProductSpace ℝ E]
     [MeasurableSpace E] [BorelSpace E] [FiniteDimensional ℝ E]
+
+omit [NormedAddCommGroup E] [InnerProductSpace ℝ E] [BorelSpace E]
+  [FiniteDimensional ℝ E] in
+/-- A bounded measurable real function is integrable for a probability measure. -/
+lemma integrable_of_abs_le {μ : Measure E} [IsProbabilityMeasure μ] {F : E → ℝ}
+    (hF : Measurable F) {C : ℝ} (hC : ∀ x, |F x| ≤ C) : Integrable F μ :=
+  Integrable.of_bound hF.aestronglyMeasurable C
+    (ae_of_all _ fun x => by rw [Real.norm_eq_abs]; exact hC x)
+
+/-- **LSI ⇒ Poincaré for bounded functions** (linearization of the LSI at
+the constant `1`). -/
+theorem variance_le_of_lsi_of_abs_le
+    {μ : Measure E} [IsProbabilityMeasure μ] {c : ℝ}
+    (h_lsi : SatisfiesLSI μ c)
+    {g : E → ℝ} (hg : Differentiable ℝ g) {A : ℝ} (hA : 0 < A)
+    (hgA : ∀ x, |g x| ≤ A)
+    (hgrad_int : Integrable (fun x => ‖fderiv ℝ g x‖ ^ 2) μ) :
+    variance g μ ≤ (1 / c) * ∫ x, ‖fderiv ℝ g x‖ ^ 2 ∂μ := by
+  have hc := h_lsi.c_pos
+  have hgc : Continuous g := hg.continuous
+  have hgm : Measurable g := hgc.measurable
+  set m1 := ∫ x, g x ∂μ with hm1_def
+  set m2 := ∫ x, g x ^ 2 ∂μ with hm2_def
+  set D := ∫ x, ‖fderiv ℝ g x‖ ^ 2 ∂μ with hD_def
+  set V := variance g μ with hV_def
+  have hgi : Integrable g μ := integrable_of_abs_le hgm hgA
+  have hg2b : ∀ x, |g x ^ 2| ≤ A ^ 2 := by
+    intro x; rw [abs_pow]; exact pow_le_pow_left₀ (abs_nonneg _) (hgA x) 2
+  have hg2i : Integrable (fun x => g x ^ 2) μ :=
+    integrable_of_abs_le (hgm.pow_const 2) hg2b
+  have hm1 : |m1| ≤ A := by
+    calc |m1| ≤ ∫ x, |g x| ∂μ := abs_integral_le_integral_abs
+      _ ≤ ∫ _, A ∂μ := integral_mono hgi.abs (integrable_const A) hgA
+      _ = A := by simp
+  have hm2 : 0 ≤ m2 ∧ m2 ≤ A ^ 2 := by
+    refine ⟨integral_nonneg fun x => sq_nonneg _, ?_⟩
+    calc m2 ≤ ∫ _, A ^ 2 ∂μ :=
+          integral_mono hg2i (integrable_const _) fun x => (abs_le.mp (hg2b x)).2
+      _ = A ^ 2 := by simp
+  have hV : V = ∫ x, (g x - m1) ^ 2 ∂μ := variance_eq_integral hgm.aemeasurable
+  -- Main estimate at scale `ε`.
+  have key : ∀ ε : ℝ, 0 < ε → ε * A ≤ 1 / 8 →
+      2 * ε ^ 2 * V - 221 * A ^ 3 * ε ^ 3 ≤ 2 / c * (ε ^ 2 * D) := by
+    intro ε hε hεA
+    have hεA0 : 0 ≤ ε * A := by positivity
+    set h : E → ℝ := fun x => 1 + ε * g x with hh_def
+    have hh : Differentiable ℝ h := (differentiable_const 1).add (hg.const_mul ε)
+    have hfd : ∀ x, fderiv ℝ h x = ε • fderiv ℝ g x := by
+      intro x
+      have := ((hasFDerivAt_const (1 : ℝ) x).add ((hg x).hasFDerivAt.const_mul ε))
+      rw [zero_add] at this
+      exact this.fderiv
+    set X : E → ℝ := fun x => 2 * ε * g x + ε ^ 2 * g x ^ 2 with hX_def
+    have hXm : Measurable X := by
+      simp only [hX_def]; fun_prop
+    have hhX : ∀ x, h x ^ 2 = 1 + X x := by
+      intro x; simp only [hh_def, hX_def]; ring
+    have hXb : ∀ x, |X x| ≤ 3 * (ε * A) := by
+      intro x
+      have hgx := hgA x
+      have h1 : |X x| ≤ 2 * ε * |g x| + ε ^ 2 * |g x| ^ 2 := by
+        calc |X x| ≤ |2 * ε * g x| + |ε ^ 2 * g x ^ 2| := abs_add_le _ _
+          _ = 2 * ε * |g x| + ε ^ 2 * |g x| ^ 2 := by
+              rw [abs_mul, abs_mul, abs_mul, abs_pow, abs_pow, abs_of_pos hε]; norm_num
+      have h2 : ε * |g x| ≤ ε * A := by gcongr
+      have h3 : ε ^ 2 * |g x| ^ 2 = (ε * |g x|) ^ 2 := by ring
+      nlinarith [abs_nonneg (g x), mul_nonneg hε.le (abs_nonneg (g x))]
+    have hXh : ∀ x, |X x| ≤ 1 / 2 := fun x => by linarith [hXb x]
+    have hXi : Integrable X μ := integrable_of_abs_le hXm hXb
+    set m := ∫ x, X x ∂μ with hm_def
+    have hmb : |m| ≤ 3 * (ε * A) := by
+      calc |m| ≤ ∫ x, |X x| ∂μ := abs_integral_le_integral_abs
+        _ ≤ ∫ _, 3 * (ε * A) ∂μ := integral_mono hXi.abs (integrable_const _) hXb
+        _ = 3 * (ε * A) := by simp
+    have hmh : |m| ≤ 1 / 2 := by linarith
+    have hm_eq : m = 2 * ε * m1 + ε ^ 2 * m2 := by
+      simp only [hm_def, hX_def]
+      rw [integral_add (hgi.const_mul _) (hg2i.const_mul _), integral_const_mul,
+        integral_const_mul]
+    -- LSI applied to `h`.
+    have hh2b : ∀ x, |h x ^ 2| ≤ 2 := fun x => by
+      rw [hhX]; calc |1 + X x| ≤ |1| + |X x| := abs_add_le _ _
+        _ ≤ 2 := by rw [abs_one]; linarith [hXh x]
+    have hhm : Measurable h := by simp only [hh_def]; fun_prop
+    have hh2i : Integrable (fun x => h x ^ 2) μ :=
+      integrable_of_abs_le (hhm.pow_const 2) hh2b
+    have hphib : ∀ x, |h x ^ 2 * Real.log (h x ^ 2)| ≤ 2 := by
+      intro x
+      rw [hhX]
+      have hpos : 0 < 1 + X x := by linarith [abs_le.mp (hXh x)]
+      have hle : 1 + X x ≤ 3 / 2 := by linarith [abs_le.mp (hXh x)]
+      have hge : 1 / 2 ≤ 1 + X x := by linarith [abs_le.mp (hXh x)]
+      rw [abs_mul, abs_of_pos hpos]
+      have hlog : |Real.log (1 + X x)| ≤ 1 := by
+        rw [abs_le]; constructor
+        · have h1 := Real.one_sub_inv_le_log_of_pos hpos
+          have h2 : (1 + X x)⁻¹ ≤ 2 := by
+            rw [inv_le_comm₀ hpos (by norm_num)]; linarith
+          linarith
+        · have := Real.log_le_sub_one_of_pos hpos; linarith
+      nlinarith [abs_nonneg (Real.log (1 + X x))]
+    have hphim : Measurable fun x => h x ^ 2 * Real.log (h x ^ 2) := by
+      fun_prop
+    have hphii : Integrable (fun x => h x ^ 2 * Real.log (h x ^ 2)) μ :=
+      integrable_of_abs_le hphim hphib
+    have hgrad_h : (fun x => ‖fderiv ℝ h x‖ ^ 2) = fun x => ε ^ 2 * ‖fderiv ℝ g x‖ ^ 2 := by
+      funext x; rw [hfd, norm_smul, Real.norm_eq_abs, abs_of_pos hε]; ring
+    have hgradi : Integrable (fun x => ‖fderiv ℝ h x‖ ^ 2) μ := by
+      rw [hgrad_h]; exact hgrad_int.const_mul _
+    have hLSI := h_lsi.entropy_le hh hh2i hphii hgradi
+    rw [hgrad_h, integral_const_mul] at hLSI
+    -- Rewrite the entropy through `X`.
+    have hEnt : entropy μ (fun x => h x ^ 2) =
+        (∫ x, (1 + X x) * Real.log (1 + X x) ∂μ) - (1 + m) * Real.log (1 + m) := by
+      have h1 : (∫ x, h x ^ 2 ∂μ) = 1 + m := by
+        simp_rw [hhX]
+        rw [integral_add (integrable_const _) hXi]; simp [hm_def]
+      simp only [entropy]
+      rw [h1]; simp_rw [hhX]
+    -- Pointwise second-order bounds.
+    have hlow : ∀ x, X x + X x ^ 2 / 2 - 4 * (3 * (ε * A)) ^ 3 ≤
+        (1 + X x) * Real.log (1 + X x) := by
+      intro x
+      have h1 := abs_one_add_mul_log_one_add_sub_le (hXh x)
+      have h2 : |X x| ^ 3 ≤ (3 * (ε * A)) ^ 3 :=
+        pow_le_pow_left₀ (abs_nonneg _) (hXb x) 3
+      have := (abs_le.mp h1).1
+      linarith
+    have hup : (1 + m) * Real.log (1 + m) ≤ m + m ^ 2 / 2 + 4 * (3 * (ε * A)) ^ 3 := by
+      have h1 := abs_one_add_mul_log_one_add_sub_le hmh
+      have h2 : |m| ^ 3 ≤ (3 * (ε * A)) ^ 3 := pow_le_pow_left₀ (abs_nonneg _) hmb 3
+      have := (abs_le.mp h1).2
+      linarith
+    have hX2i : Integrable (fun x => X x ^ 2) μ :=
+      integrable_of_abs_le (hXm.pow_const 2) (C := (3 * (ε * A)) ^ 2) fun x => by
+        rw [abs_pow]; exact pow_le_pow_left₀ (abs_nonneg _) (hXb x) 2
+    have hphiXi : Integrable (fun x => (1 + X x) * Real.log (1 + X x)) μ := by
+      have : (fun x => (1 + X x) * Real.log (1 + X x)) =
+          fun x => h x ^ 2 * Real.log (h x ^ 2) := by
+        funext x; rw [hhX]
+      rw [this]; exact hphii
+    have hint_low : (∫ x, X x ∂μ) + (∫ x, X x ^ 2 ∂μ) / 2 - 4 * (3 * (ε * A)) ^ 3 ≤
+        ∫ x, (1 + X x) * Real.log (1 + X x) ∂μ := by
+      have hli : Integrable (fun x => X x + X x ^ 2 / 2 - 4 * (3 * (ε * A)) ^ 3) μ :=
+        ((hXi.add (hX2i.div_const 2)).sub (integrable_const _))
+      have := integral_mono hli hphiXi hlow
+      have e1 : ∫ x, (X x + X x ^ 2 / 2 - 4 * (3 * (ε * A)) ^ 3) ∂μ =
+          (∫ x, X x ∂μ) + (∫ x, X x ^ 2 ∂μ) / 2 - 4 * (3 * (ε * A)) ^ 3 := by
+        rw [integral_sub, integral_add, integral_div, integral_const]
+        · simp
+        · exact hXi
+        · exact hX2i.div_const 2
+        · exact hXi.add (hX2i.div_const 2)
+        · exact integrable_const _
+      linarith
+    -- Variance of `X` controls `4 ε² V`.
+    have hVX : (∫ x, X x ^ 2 ∂μ) - m ^ 2 = ∫ x, (X x - m) ^ 2 ∂μ := by
+      have hXmem : MemLp X 2 μ :=
+        MemLp.of_bound hXm.aestronglyMeasurable (3 * (ε * A))
+          (ae_of_all _ fun x => by rw [Real.norm_eq_abs]; exact hXb x)
+      rw [← variance_eq_integral hXm.aemeasurable, variance_eq_sub hXmem]
+      simp [hm_def, Pi.pow_apply]
+    have hdev : ∀ x, 4 * ε ^ 2 * (g x - m1) ^ 2 - 8 * ε ^ 3 * A ^ 3 ≤ (X x - m) ^ 2 := by
+      intro x
+      have hu : |g x - m1| ≤ 2 * A := by
+        calc |g x - m1| ≤ |g x| + |m1| := abs_sub _ _
+          _ ≤ 2 * A := by linarith [hgA x]
+      have hw : |g x ^ 2 - m2| ≤ A ^ 2 := by
+        have h0 : 0 ≤ g x ^ 2 := sq_nonneg _
+        have h1 : g x ^ 2 ≤ A ^ 2 := (abs_le.mp (hg2b x)).2
+        rw [abs_le]; constructor <;> linarith [hm2.1, hm2.2]
+      have hdecomp : X x - m = 2 * ε * (g x - m1) + ε ^ 2 * (g x ^ 2 - m2) := by
+        rw [hm_eq]; simp only [hX_def]; ring
+      rw [hdecomp]
+      have huw : |(g x - m1) * (g x ^ 2 - m2)| ≤ 2 * A * A ^ 2 := by
+        rw [abs_mul]; exact mul_le_mul hu hw (abs_nonneg _) (by positivity)
+      have hε3 : 0 ≤ ε ^ 3 := by positivity
+      nlinarith [abs_le.mp huw, sq_nonneg (ε ^ 2 * (g x ^ 2 - m2)), hε3,
+        mul_le_mul_of_nonneg_left (abs_le.mp huw).1 (by positivity : (0:ℝ) ≤ 4 * ε ^ 3)]
+    have hint_dev : 4 * ε ^ 2 * V - 8 * ε ^ 3 * A ^ 3 ≤ ∫ x, (X x - m) ^ 2 ∂μ := by
+      have hu2i : Integrable (fun x => (g x - m1) ^ 2) μ :=
+        integrable_of_abs_le ((hgm.sub_const m1).pow_const 2) (C := (2 * A) ^ 2) fun x => by
+          rw [abs_pow]
+          exact pow_le_pow_left₀ (abs_nonneg _)
+            (by calc |g x - m1| ≤ |g x| + |m1| := abs_sub _ _
+                  _ ≤ 2 * A := by linarith [hgA x]) 2
+      have hdi : Integrable (fun x => (X x - m) ^ 2) μ :=
+        integrable_of_abs_le ((hXm.sub_const m).pow_const 2) (C := (6 * (ε * A)) ^ 2)
+          fun x => by
+            rw [abs_pow]
+            exact pow_le_pow_left₀ (abs_nonneg _)
+              (by calc |X x - m| ≤ |X x| + |m| := abs_sub _ _
+                    _ ≤ 6 * (ε * A) := by linarith [hXb x]) 2
+      have hli : Integrable (fun x => 4 * ε ^ 2 * (g x - m1) ^ 2 - 8 * ε ^ 3 * A ^ 3) μ :=
+        (hu2i.const_mul _).sub (integrable_const _)
+      have := integral_mono hli hdi hdev
+      have e1 : ∫ x, (4 * ε ^ 2 * (g x - m1) ^ 2 - 8 * ε ^ 3 * A ^ 3) ∂μ =
+          4 * ε ^ 2 * V - 8 * ε ^ 3 * A ^ 3 := by
+        rw [integral_sub, integral_const_mul, ← hV, integral_const]
+        · simp
+        · exact hu2i.const_mul _
+        · exact integrable_const _
+      linarith
+    -- Assemble.
+    rw [hEnt] at hLSI
+    have hA3 : 0 ≤ A ^ 3 * ε ^ 3 := by positivity
+    have hcube : 4 * (3 * (ε * A)) ^ 3 = 108 * (A ^ 3 * ε ^ 3) := by ring
+    have hεA3 : 8 * ε ^ 3 * A ^ 3 = 8 * (A ^ 3 * ε ^ 3) := by ring
+    rw [hcube] at hint_low hup
+    rw [hεA3] at hint_dev
+    linarith [hint_low, hup, hVX, hint_dev, hLSI]
+  -- Let `ε → 0`.
+  have hA3 : 0 < A ^ 3 := by positivity
+  refine le_of_forall_pos_lt_add fun δ hδ => ?_
+  set ε := min (1 / (8 * A)) (δ / (221 * A ^ 3)) with hε_def
+  have hε : 0 < ε := lt_min (by positivity) (by positivity)
+  have hεA : ε * A ≤ 1 / 8 := by
+    calc ε * A ≤ 1 / (8 * A) * A := by gcongr; exact min_le_left _ _
+      _ = 1 / 8 := by field_simp
+  have hεδ : 221 * A ^ 3 * ε ≤ δ := by
+    calc 221 * A ^ 3 * ε ≤ 221 * A ^ 3 * (δ / (221 * A ^ 3)) := by
+          gcongr; exact min_le_right _ _
+      _ = δ := by field_simp
+  have hk := key ε hε hεA
+  have hε2 : 0 < ε ^ 2 := by positivity
+  -- divide by 2 ε²
+  have : V ≤ 1 / c * D + 221 * A ^ 3 * ε / 2 := by
+    have h2 : 2 * ε ^ 2 * V ≤ 2 * ε ^ 2 * (1 / c * D + 221 * A ^ 3 * ε / 2) := by
+      have : 2 / c * (ε ^ 2 * D) = 2 * ε ^ 2 * (1 / c * D) := by ring
+      nlinarith
+    exact le_of_mul_le_mul_left h2 (by positivity)
+  linarith
+
+/-- `(n + 1) · arctan (y / (n + 1)) → y`: the arctangent truncations converge
+pointwise. -/
+lemma tendsto_mul_arctan_div (y : ℝ) :
+    Filter.Tendsto (fun n : ℕ => ((n : ℝ) + 1) * Real.arctan (y / ((n : ℝ) + 1)))
+      Filter.atTop (nhds y) := by
+  rcases eq_or_ne y 0 with rfl | hy
+  · simp
+  have hslope := (Real.hasDerivAt_arctan 0).tendsto_slope_zero
+  simp only [zero_add, Real.arctan_zero, sub_zero, one_div] at hslope
+  norm_num at hslope
+  have ht : Filter.Tendsto (fun n : ℕ => y / ((n : ℝ) + 1)) Filter.atTop
+      (nhdsWithin 0 {0}ᶜ) := by
+    refine tendsto_nhdsWithin_iff.mpr ⟨?_, Filter.Eventually.of_forall fun n => ?_⟩
+    · have := tendsto_one_div_add_atTop_nhds_zero_nat.const_mul y
+      rw [mul_zero] at this
+      exact this.congr fun n => by rw [mul_one_div]
+    · simp only [Set.mem_compl_iff, Set.mem_singleton_iff]
+      exact div_ne_zero hy (by positivity)
+  have := (hslope.comp ht).const_mul y
+  simp only [mul_one] at this
+  refine this.congr fun n => ?_
+  simp only [Function.comp_apply]
+  field_simp
+
+/-- **LSI implies Poincaré.** `SatisfiesLSI μ c` implies the Poincaré
+inequality with the same constant: for differentiable `f` with `f`, `f²`
+and `‖∇f‖²` integrable, `Var_μ(f) ≤ (1/c) ∫ ‖∇f‖² dμ`.
+
+Bounded case: linearize the LSI at `1 + εg`
+(`variance_le_of_lsi_of_abs_le`). General case: apply it to the smooth
+bounded truncations `(n+1) · arctan (f / (n+1))`, whose gradients are
+dominated by `‖∇f‖`, and pass to the limit by dominated convergence.
+
+Reference: Bakry, Gentil, Ledoux, *Analysis and Geometry of Markov
+Diffusion Operators*, Springer, 2014, Proposition 5.1.3. -/
+theorem poincare_of_lsi
     {μ : Measure E} [IsProbabilityMeasure μ] {c : ℝ}
     (h_lsi : SatisfiesLSI μ c)
     (f : E → ℝ) (hf : Differentiable ℝ f)
     (hf_int : Integrable f μ)
     (hf_sq_int : Integrable (fun x => (f x) ^ 2) μ)
     (hgrad_int : Integrable (fun x => ‖fderiv ℝ f x‖ ^ 2) μ) :
-    ProbabilityTheory.variance f μ ≤ (1 / c) * ∫ x, ‖fderiv ℝ f x‖ ^ 2 ∂μ
+    ProbabilityTheory.variance f μ ≤ (1 / c) * ∫ x, ‖fderiv ℝ f x‖ ^ 2 ∂μ := by
+  have hc := h_lsi.c_pos
+  have hfm : Measurable f := hf.continuous.measurable
+  set T : ℕ → E → ℝ := fun n x => ((n : ℝ) + 1) * Real.arctan (f x / ((n : ℝ) + 1))
+    with hT_def
+  have hTd : ∀ n x, HasFDerivAt (T n)
+      (((n : ℝ) + 1) • ((1 / (1 + (f x / ((n : ℝ) + 1)) ^ 2)) •
+        (((n : ℝ) + 1)⁻¹ • fderiv ℝ f x))) x := by
+    intro n x
+    have h1 : HasFDerivAt (fun x => ((n : ℝ) + 1)⁻¹ * f x)
+        (((n : ℝ) + 1)⁻¹ • fderiv ℝ f x) x := (hf x).hasFDerivAt.const_mul _
+    have h2 := (Real.hasDerivAt_arctan (((n : ℝ) + 1)⁻¹ * f x)).comp_hasFDerivAt x h1
+    have h3 := h2.const_mul ((n : ℝ) + 1)
+    convert h3 using 2 <;> simp [hT_def, div_eq_inv_mul]
+  have hTdiff : ∀ n, Differentiable ℝ (T n) := fun n x => (hTd n x).differentiableAt
+  have hTgrad : ∀ n x, ‖fderiv ℝ (T n) x‖ ^ 2 ≤ ‖fderiv ℝ f x‖ ^ 2 := by
+    intro n x
+    rw [(hTd n x).fderiv]
+    have hn : (0 : ℝ) < (n : ℝ) + 1 := by positivity
+    have ha : 0 < 1 / (1 + (f x / ((n : ℝ) + 1)) ^ 2) := by positivity
+    have ha1 : 1 / (1 + (f x / ((n : ℝ) + 1)) ^ 2) ≤ 1 := by
+      rw [div_le_one (by positivity)]; nlinarith [sq_nonneg (f x / ((n : ℝ) + 1))]
+    have : ‖((n : ℝ) + 1) • ((1 / (1 + (f x / ((n : ℝ) + 1)) ^ 2)) •
+        (((n : ℝ) + 1)⁻¹ • fderiv ℝ f x))‖ ≤ ‖fderiv ℝ f x‖ := by
+      rw [norm_smul, norm_smul, norm_smul, Real.norm_eq_abs, Real.norm_eq_abs,
+        Real.norm_eq_abs, abs_of_pos hn, abs_of_pos ha, abs_of_pos (inv_pos.mpr hn)]
+      calc ((n : ℝ) + 1) * (1 / (1 + (f x / ((n : ℝ) + 1)) ^ 2) *
+            (((n : ℝ) + 1)⁻¹ * ‖fderiv ℝ f x‖))
+          = 1 / (1 + (f x / ((n : ℝ) + 1)) ^ 2) * ‖fderiv ℝ f x‖ := by
+            field_simp
+        _ ≤ 1 * ‖fderiv ℝ f x‖ := by gcongr
+        _ = ‖fderiv ℝ f x‖ := one_mul _
+    exact pow_le_pow_left₀ (norm_nonneg _) this 2
+  have hTm : ∀ n, Measurable (T n) := fun n => (hTdiff n).continuous.measurable
+  have hTb : ∀ n x, |T n x| ≤ ((n : ℝ) + 1) * (Real.pi / 2) := by
+    intro n x
+    have hn : (0 : ℝ) < (n : ℝ) + 1 := by positivity
+    simp only [hT_def]
+    rw [abs_mul, abs_of_pos hn]
+    gcongr
+    rw [abs_le]
+    exact ⟨(Real.neg_pi_div_two_lt_arctan _).le, (Real.arctan_lt_pi_div_two _).le⟩
+  have hTle : ∀ n x, |T n x| ≤ |f x| := by
+    intro n x
+    have hn : (0 : ℝ) < (n : ℝ) + 1 := by positivity
+    simp only [hT_def]
+    rw [abs_mul, abs_of_pos hn]
+    calc ((n : ℝ) + 1) * |Real.arctan (f x / ((n : ℝ) + 1))|
+        ≤ ((n : ℝ) + 1) * |f x / ((n : ℝ) + 1)| :=
+          mul_le_mul_of_nonneg_left Real.abs_arctan_le_abs hn.le
+      _ = |f x| := by rw [abs_div, abs_of_pos hn]; field_simp
+  -- Poincaré for each truncation.
+  have hn : ∀ n, variance (T n) μ ≤ (1 / c) * ∫ x, ‖fderiv ℝ f x‖ ^ 2 ∂μ := by
+    intro n
+    have hgradT : Integrable (fun x => ‖fderiv ℝ (T n) x‖ ^ 2) μ := by
+      refine hgrad_int.mono' ?_ (ae_of_all _ fun x => ?_)
+      · exact ((measurable_fderiv ℝ (T n)).norm.pow_const 2).aestronglyMeasurable
+      · rw [Real.norm_eq_abs, abs_of_nonneg (by positivity)]; exact hTgrad n x
+    calc variance (T n) μ ≤ (1 / c) * ∫ x, ‖fderiv ℝ (T n) x‖ ^ 2 ∂μ :=
+          variance_le_of_lsi_of_abs_le h_lsi (hTdiff n) (by positivity) (hTb n) hgradT
+      _ ≤ (1 / c) * ∫ x, ‖fderiv ℝ f x‖ ^ 2 ∂μ :=
+          mul_le_mul_of_nonneg_left (integral_mono hgradT hgrad_int (hTgrad n))
+            (by positivity)
+  -- Variance convergence by dominated convergence.
+  have hlim : ∀ x, Filter.Tendsto (fun n => T n x) Filter.atTop (nhds (f x)) :=
+    fun x => tendsto_mul_arctan_div (f x)
+  have h1 : Filter.Tendsto (fun n => ∫ x, T n x ∂μ) Filter.atTop (nhds (∫ x, f x ∂μ)) :=
+    tendsto_integral_of_dominated_convergence (fun x => |f x|)
+      (fun n => (hTm n).aestronglyMeasurable) hf_int.abs
+      (fun n => ae_of_all _ fun x => by rw [Real.norm_eq_abs]; exact hTle n x)
+      (ae_of_all _ hlim)
+  have h2 : Filter.Tendsto (fun n => ∫ x, T n x ^ 2 ∂μ) Filter.atTop
+      (nhds (∫ x, f x ^ 2 ∂μ)) :=
+    tendsto_integral_of_dominated_convergence (fun x => f x ^ 2)
+      (fun n => ((hTm n).pow_const 2).aestronglyMeasurable) hf_sq_int
+      (fun n => ae_of_all _ fun x => by
+        rw [Real.norm_eq_abs, abs_pow, ← sq_abs (f x)]
+        exact pow_le_pow_left₀ (abs_nonneg _) (hTle n x) 2)
+      (ae_of_all _ fun x => (hlim x).pow 2)
+  have hTmem : ∀ n, MemLp (T n) 2 μ := fun n =>
+    MemLp.of_bound (hTm n).aestronglyMeasurable _
+      (ae_of_all _ fun x => by rw [Real.norm_eq_abs]; exact hTb n x)
+  have hfmem : MemLp f 2 μ :=
+    (memLp_two_iff_integrable_sq hfm.aestronglyMeasurable).mpr hf_sq_int
+  have hvar : Filter.Tendsto (fun n => variance (T n) μ) Filter.atTop
+      (nhds (variance f μ)) := by
+    have := h2.sub (h1.pow 2)
+    rw [variance_eq_sub hfmem]
+    refine this.congr fun n => ?_
+    rw [variance_eq_sub (hTmem n)]
+    simp [Pi.pow_apply]
+  exact le_of_tendsto' hvar hn
+
+end PoincareOfLSI
 
 /-- **Variance bound for Lipschitz observables under LSI.**
 
@@ -362,15 +735,9 @@ For an L-Lipschitz `F` under `LSI(c)`,
 
   Var_μ(F) ≤ L² / c.
 
-Direct corollary of `poincare_of_lsi` plus the bound `‖∇F‖ ≤ L` a.e.
-for L-Lipschitz F (Rademacher in finite dim).
-
-Currently `sorry` in the gradient bound: `Differentiable F` doesn't
-syntactically carry `‖fderiv ℝ F x‖ ≤ L` for L-Lipschitz; this is
-true but requires a separate Mathlib-level lemma (the operator-norm
-of fderiv of a Lipschitz function is bounded by the Lipschitz
-constant, e.g. `LipschitzWith.norm_fderiv_le`). The remaining
-hypotheses (integrability) are user-supplied. -/
+Direct corollary of `poincare_of_lsi` plus the pointwise bound
+`‖∇F‖ ≤ L` for a differentiable `L`-Lipschitz `F`
+(`norm_fderiv_le_of_lipschitz`). -/
 theorem variance_lipschitz_le_of_lsi
     {E : Type*}
     [NormedAddCommGroup E] [InnerProductSpace ℝ E]
