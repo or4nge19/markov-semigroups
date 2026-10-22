@@ -60,6 +60,8 @@ import MarkovSemigroups.Abstract.DirichletForm
 import Mathlib.Analysis.InnerProductSpace.Adjoint
 import Mathlib.MeasureTheory.Function.L2Space
 import Mathlib.Probability.Distributions.Uniform
+import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
+import Mathlib.MeasureTheory.Function.Floor
 
 open MeasureTheory ENNReal Set
 open scoped ENNReal InnerProductSpace
@@ -597,9 +599,408 @@ end DirichletMarkovSemigroup
 
 /-! ## Stroock–Varopoulos inequality (intermediate-step lemma) -/
 
-/-- **Stroock–Varopoulos inequality.** AXIOM
-(textbook bridge, restated on the `L²(μ)`-carrier-based bundled
-structure).
+/-! ### Stroock–Varopoulos for Markov operators on `L²`
+
+Generic `L²` facts for a positive, conservative, symmetric operator `T`:
+the Dirichlet-type form `⟪φ∘F, (I - T)(ψ∘F)⟫` of a finite-valued `F` as a
+double sum over level sets, and the operator Stroock–Varopoulos inequality
+for bounded nonnegative `F`. -/
+
+namespace MarkovOperator
+
+open scoped InnerProductSpace
+
+/-- **Scalar Stroock–Varopoulos inequality.** For `p > 1` and `a, b ≥ 0`,
+`(4(p-1)/p²) (a^{p/2} - b^{p/2})² ≤ (a - b)(a^{p-1} - b^{p-1})`
+(Cauchy–Schwarz for `∫_b^a s^{p/2-1} ds`). -/
+lemma sv_scalar {p : ℝ} (hp : 1 < p) {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) :
+    4 * (p - 1) / p ^ 2 * (a ^ (p / 2) - b ^ (p / 2)) ^ 2 ≤
+      (a - b) * (a ^ (p - 1) - b ^ (p - 1)) := by
+  wlog hab : b ≤ a generalizing a b
+  · have := this hb ha (le_of_not_ge hab)
+    calc 4 * (p - 1) / p ^ 2 * (a ^ (p / 2) - b ^ (p / 2)) ^ 2
+        = 4 * (p - 1) / p ^ 2 * (b ^ (p / 2) - a ^ (p / 2)) ^ 2 := by ring
+      _ ≤ (b - a) * (b ^ (p - 1) - a ^ (p - 1)) := this
+      _ = (a - b) * (a ^ (p - 1) - b ^ (p - 1)) := by ring
+  have hp0 : 0 < p := by linarith
+  have hc1 : 4 * (p - 1) / p ^ 2 ≤ 1 := by
+    rw [div_le_one (by positivity)]; nlinarith [sq_nonneg (p - 2)]
+  have hc0 : 0 ≤ 4 * (p - 1) / p ^ 2 := by
+    apply div_nonneg _ (by positivity); linarith
+  rcases hb.eq_or_lt with rfl | hb0
+  · rw [Real.zero_rpow (by positivity), Real.zero_rpow (by linarith), sub_zero, sub_zero,
+      sub_zero]
+    have h1 : (a ^ (p / 2)) ^ 2 = a * a ^ (p - 1) := by
+      rw [← Real.rpow_natCast, ← Real.rpow_mul ha]
+      have : p / 2 * ((2 : ℕ) : ℝ) = 1 + (p - 1) := by push_cast; ring
+      rw [this, Real.rpow_add' ha (by linarith), Real.rpow_one]
+    rw [h1]
+    have : 0 ≤ a * a ^ (p - 1) := mul_nonneg ha (Real.rpow_nonneg ha _)
+    nlinarith
+  -- `0 < b ≤ a`: Cauchy–Schwarz on `[b, a]`.
+  have hzero : (0 : ℝ) ∉ Set.uIcc b a := by
+    rw [Set.uIcc_of_le hab]; exact fun h => absurd h.1 (not_le.mpr hb0)
+  have I1 : ∫ s in b..a, s ^ (p / 2 - 1) = (a ^ (p / 2) - b ^ (p / 2)) / (p / 2) := by
+    rw [integral_rpow (Or.inr ⟨by linarith, hzero⟩)]
+    congr 1 <;> ring_nf
+  have I2 : ∫ s in b..a, s ^ (p - 2) = (a ^ (p - 1) - b ^ (p - 1)) / (p - 1) := by
+    rw [integral_rpow (Or.inr ⟨by linarith, hzero⟩)]
+    congr 1 <;> ring_nf
+  have hcont1 : ContinuousOn (fun s : ℝ => s ^ (p / 2 - 1)) (Set.uIcc b a) :=
+    fun s hs => (Real.continuousAt_rpow_const _ _
+      (Or.inl (ne_of_gt (by
+        rw [Set.uIcc_of_le hab] at hs; exact lt_of_lt_of_le hb0 hs.1)))).continuousWithinAt
+  have hcont2 : ContinuousOn (fun s : ℝ => s ^ (p - 2)) (Set.uIcc b a) :=
+    fun s hs => (Real.continuousAt_rpow_const _ _
+      (Or.inl (ne_of_gt (by
+        rw [Set.uIcc_of_le hab] at hs; exact lt_of_lt_of_le hb0 hs.1)))).continuousWithinAt
+  have hi1 : IntervalIntegrable (fun s : ℝ => s ^ (p / 2 - 1)) MeasureTheory.volume b a :=
+    hcont1.intervalIntegrable
+  have hi2 : IntervalIntegrable (fun s : ℝ => s ^ (p - 2)) MeasureTheory.volume b a :=
+    hcont2.intervalIntegrable
+  -- `∫ (s^{p/2-1} - λ)² ≥ 0` for every `λ`.
+  have hsq : ∀ s ∈ Set.Icc b a, (s ^ (p / 2 - 1)) ^ 2 = s ^ (p - 2) := by
+    intro s hs
+    have hs0 : 0 ≤ s := hb.trans hs.1
+    rw [← Real.rpow_natCast, ← Real.rpow_mul hs0]; norm_num; ring_nf
+  have hCS : ∀ l : ℝ, 0 ≤ (∫ s in b..a, s ^ (p - 2)) -
+      2 * l * (∫ s in b..a, s ^ (p / 2 - 1)) + l ^ 2 * (a - b) := by
+    intro l
+    have h0 : 0 ≤ ∫ s in b..a, (s ^ (p / 2 - 1) - l) ^ 2 :=
+      intervalIntegral.integral_nonneg hab fun s _ => sq_nonneg _
+    have hexp : ∫ s in b..a, (s ^ (p / 2 - 1) - l) ^ 2 =
+        (∫ s in b..a, s ^ (p - 2)) - 2 * l * (∫ s in b..a, s ^ (p / 2 - 1)) +
+          l ^ 2 * (a - b) := by
+      have e1 : ∀ s ∈ Set.uIcc b a, (s ^ (p / 2 - 1) - l) ^ 2 =
+          s ^ (p - 2) - 2 * l * s ^ (p / 2 - 1) + l ^ 2 := by
+        intro s hs
+        rw [Set.uIcc_of_le hab] at hs
+        rw [sub_sq, hsq s hs]; ring
+      rw [intervalIntegral.integral_congr e1, intervalIntegral.integral_add
+        (hi2.sub (hi1.const_mul _)) intervalIntegrable_const,
+        intervalIntegral.integral_sub hi2 (hi1.const_mul _),
+        intervalIntegral.integral_const_mul, intervalIntegral.integral_const]
+      simp only [smul_eq_mul]; ring
+    linarith
+  rcases hab.eq_or_lt with rfl | hab'
+  · simp
+  have hab0 : 0 < a - b := by linarith
+  have := hCS ((∫ s in b..a, s ^ (p / 2 - 1)) / (a - b))
+  rw [I1, I2] at this
+  have hp1 : 0 < p - 1 := by linarith
+  set U := a ^ (p / 2) - b ^ (p / 2)
+  set G := a ^ (p - 1) - b ^ (p - 1)
+  have key : (U / (p / 2)) ^ 2 ≤ (a - b) * (G / (p - 1)) := by
+    set V := U / (p / 2)
+    have h' : 0 ≤ G / (p - 1) - V ^ 2 / (a - b) := by
+      have e : G / (p - 1) - 2 * (V / (a - b)) * V + (V / (a - b)) ^ 2 * (a - b) =
+          G / (p - 1) - V ^ 2 / (a - b) := by
+        field_simp; ring
+      linarith
+    rw [sub_nonneg, div_le_iff₀ hab0] at h'
+    linarith
+  have : 4 * (p - 1) / p ^ 2 * U ^ 2 = (p - 1) * (U / (p / 2)) ^ 2 := by
+    field_simp; ring
+  rw [this]
+  calc (p - 1) * (U / (p / 2)) ^ 2 ≤ (p - 1) * ((a - b) * (G / (p - 1))) :=
+        mul_le_mul_of_nonneg_left key hp1.le
+    _ = (a - b) * G := by field_simp
+
+section Operator
+
+variable {X : Type*} [MeasurableSpace X] {μ : Measure X}
+
+open Classical in
+/-- The `L²` class of `F` (`0` if `F ∉ L²`). -/
+def toL2 (μ : Measure X) (F : X → ℝ) : Lp ℝ 2 μ :=
+  if h : MemLp F 2 μ then h.toLp F else 0
+
+lemma toL2_of_memLp {F : X → ℝ} (h : MemLp F 2 μ) : toL2 μ F = h.toLp F := by
+  classical
+  simp only [toL2, h, ↓reduceDIte]
+
+lemma inner_real (a b : ℝ) : ⟪a, b⟫_ℝ = a * b := by
+  rw [RCLike.inner_apply']; simp
+
+lemma toL2_congr {F G : X → ℝ} (hF : MemLp F 2 μ) (hG : MemLp G 2 μ) (h : F =ᵐ[μ] G) :
+    toL2 μ F = toL2 μ G := by
+  rw [toL2_of_memLp hF, toL2_of_memLp hG]; exact MemLp.toLp_congr hF hG h
+
+lemma coeFn_toL2 {F : X → ℝ} (h : MemLp F 2 μ) : (toL2 μ F : X → ℝ) =ᵐ[μ] F := by
+  rw [toL2_of_memLp h]; exact MemLp.coeFn_toLp h
+
+lemma toL2_add {F G : X → ℝ} (hF : MemLp F 2 μ) (hG : MemLp G 2 μ) :
+    toL2 μ (fun x => F x + G x) = toL2 μ F + toL2 μ G := by
+  change toL2 μ (F + G) = _
+  rw [toL2_of_memLp (hF.add hG), toL2_of_memLp hF, toL2_of_memLp hG, ← MemLp.toLp_add]
+
+lemma toL2_const_mul {F : X → ℝ} (c : ℝ) (hF : MemLp F 2 μ) :
+    toL2 μ (fun x => c * F x) = c • toL2 μ F := by
+  change toL2 μ (c • F) = _
+  rw [toL2_of_memLp (hF.const_smul c), toL2_of_memLp hF, ← MemLp.toLp_const_smul]
+
+lemma toL2_sum {ι : Type*} (s : Finset ι) (F : ι → X → ℝ) (hF : ∀ i, MemLp (F i) 2 μ) :
+    toL2 μ (fun x => ∑ i ∈ s, F i x) = ∑ i ∈ s, toL2 μ (F i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty =>
+    simp only [Finset.sum_empty]
+    rw [toL2_of_memLp (MemLp.zero' (p := 2) (μ := μ))]
+    exact MemLp.toLp_zero _
+  | insert a s ha ih =>
+    simp only [Finset.sum_insert ha]
+    rw [toL2_add (hF a) (memLp_finsetSum s fun i _ => hF i), ih]
+
+/-- The indicator of the level set `{F' = v}`. -/
+def lev (F' : X → ℝ) (v : ℝ) : X → ℝ := fun x => if F' x = v then 1 else 0
+
+lemma measurable_lev {F' : X → ℝ} (hF' : Measurable F') (v : ℝ) : Measurable (lev F' v) :=
+  Measurable.ite (hF' (measurableSet_singleton v)) measurable_const measurable_const
+
+lemma memLp_of_abs_le [IsFiniteMeasure μ] {F : X → ℝ} (hF : AEStronglyMeasurable F μ)
+    {C : ℝ} (hC : ∀ x, |F x| ≤ C) : MemLp F 2 μ :=
+  MemLp.of_bound hF C (ae_of_all _ fun x => by rw [Real.norm_eq_abs]; exact hC x)
+
+lemma memLp_lev [IsFiniteMeasure μ] {F' : X → ℝ} (hF' : Measurable F') (v : ℝ) :
+    MemLp (lev F' v) 2 μ :=
+  memLp_of_abs_le (measurable_lev hF' v).aestronglyMeasurable (C := 1) fun x => by
+    simp only [lev]; split_ifs <;> simp
+
+omit [MeasurableSpace X] in
+lemma comp_eq_sum_lev {F' : X → ℝ} {V : Finset ℝ} (hV : ∀ x, F' x ∈ V) (φ : ℝ → ℝ) :
+    (fun x => φ (F' x)) = fun x => ∑ v ∈ V, φ v * lev F' v x := by
+  funext x
+  rw [Finset.sum_eq_single (F' x)]
+  · simp [lev]
+  · intro b _ hb; simp [lev, Ne.symm hb]
+  · intro h; exact absurd (hV x) h
+
+lemma inner_nonneg_of_nonneg {f g : Lp ℝ 2 μ} (hf : 0 ≤ f) (hg : 0 ≤ g) :
+    0 ≤ ⟪f, g⟫_ℝ := by
+  rw [MeasureTheory.L2.inner_def]
+  refine integral_nonneg_of_ae ?_
+  filter_upwards [(Lp.coeFn_nonneg f).mpr hf, (Lp.coeFn_nonneg g).mpr hg] with x hx hy
+  simp only [Pi.zero_apply] at hx hy
+  rw [inner_real]
+  exact mul_nonneg hx hy
+
+variable [IsProbabilityMeasure μ] (T : Lp ℝ 2 μ →L[ℝ] Lp ℝ 2 μ)
+
+/-- **The Dirichlet-type form of a Markov operator on a finite-valued function.**
+For a positive, conservative, symmetric `T` and `F'` with values in a finite set `V`,
+`⟪φ∘F', ψ∘F'⟫ - ⟪φ∘F', T(ψ∘F')⟫ = Σ_{v,w} T_{vw} φ(v) (ψ(v) - ψ(w))` with
+`T_{vw} = ⟪1_{F'=v}, T 1_{F'=w}⟫`. -/
+lemma form_eq_double_sum
+    (hcons : ∀ f : Lp ℝ 2 μ, (∀ᵐ x ∂μ, (f : X → ℝ) x = 1) → T f = f)
+    {F' : X → ℝ} (hF' : Measurable F') {V : Finset ℝ} (hV : ∀ x, F' x ∈ V)
+    (φ ψ : ℝ → ℝ) :
+    ⟪toL2 μ (fun x => φ (F' x)), toL2 μ (fun x => ψ (F' x))⟫_ℝ -
+        ⟪toL2 μ (fun x => φ (F' x)), T (toL2 μ (fun x => ψ (F' x)))⟫_ℝ =
+      ∑ v ∈ V, ∑ w ∈ V, ⟪toL2 μ (lev F' v), T (toL2 μ (lev F' w))⟫_ℝ *
+        (φ v * (ψ v - ψ w)) := by
+  set e : ℝ → Lp ℝ 2 μ := fun v => toL2 μ (lev F' v) with he_def
+  have hexp : ∀ χ : ℝ → ℝ, toL2 μ (fun x => χ (F' x)) = ∑ v ∈ V, χ v • e v := by
+    intro χ
+    rw [comp_eq_sum_lev hV χ,
+      toL2_sum V (fun v x => χ v * lev F' v x) fun v => (memLp_lev hF' v).const_mul _]
+    refine Finset.sum_congr rfl fun v _ => ?_
+    exact toL2_const_mul (χ v) (memLp_lev hF' v)
+  -- orthogonality of the level indicators
+  have horth : ∀ v w, v ≠ w → ⟪e v, e w⟫_ℝ = 0 := by
+    intro v w hvw
+    simp only [he_def]
+    rw [MeasureTheory.L2.inner_def]
+    refine integral_eq_zero_of_ae ?_
+    filter_upwards [coeFn_toL2 (memLp_lev hF' v) (μ := μ),
+      coeFn_toL2 (memLp_lev hF' w) (μ := μ)] with x hx hy
+    rw [inner_real, hx, hy]
+    simp only [lev, Pi.zero_apply]
+    split_ifs with h1 h2 <;> simp_all
+  -- row sums of `T_{vw}`
+  have hone : ∑ w ∈ V, e w = toL2 μ (fun _ => (1 : ℝ)) := by
+    have := hexp (fun _ => 1)
+    simp only [one_smul] at this
+    exact this.symm
+  have hT1 : T (toL2 μ (fun _ => (1 : ℝ))) = toL2 μ (fun _ => (1 : ℝ)) :=
+    hcons _ (coeFn_toL2 (memLp_const 1))
+  have hrow : ∀ v ∈ V, ∑ w ∈ V, ⟪e v, T (e w)⟫_ℝ = ⟪e v, e v⟫_ℝ := by
+    intro v hv
+    rw [← inner_sum, ← map_sum, hone, hT1, ← hone, inner_sum,
+      Finset.sum_eq_single v (fun w _ hw => horth v w (Ne.symm hw))
+        (fun h => absurd hv h)]
+  rw [hexp φ, hexp ψ, sum_inner, sum_inner, ← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun v hv => ?_
+  rw [map_sum, inner_sum, inner_sum, ← Finset.sum_sub_distrib]
+  have hdiag : ∑ w ∈ V, ⟪φ v • e v, ψ w • e w⟫_ℝ = φ v * ψ v * ⟪e v, e v⟫_ℝ := by
+    rw [Finset.sum_eq_single v (fun w _ hw => by
+        rw [real_inner_smul_left, real_inner_smul_right, horth v w (Ne.symm hw)]; ring)
+      (fun h => absurd hv h)]
+    rw [real_inner_smul_left, real_inner_smul_right]; ring
+  rw [Finset.sum_sub_distrib, hdiag, ← hrow v hv, Finset.mul_sum, ← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun w _ => ?_
+  rw [map_smul, real_inner_smul_left, real_inner_smul_right]
+  ring
+
+/-- **Stroock–Varopoulos for a Markov operator, finite-valued case.** -/
+lemma sv_finite
+    (hpos : ∀ f : Lp ℝ 2 μ, 0 ≤ f → 0 ≤ T f)
+    (hcons : ∀ f : Lp ℝ 2 μ, (∀ᵐ x ∂μ, (f : X → ℝ) x = 1) → T f = f)
+    (hsymm : ∀ f g : Lp ℝ 2 μ, ⟪f, T g⟫_ℝ = ⟪T f, g⟫_ℝ)
+    {p : ℝ} (hp : 1 < p) {F' : X → ℝ} (hF' : Measurable F') {V : Finset ℝ}
+    (hV : ∀ x, F' x ∈ V) (hV0 : ∀ v ∈ V, 0 ≤ v) :
+    4 * (p - 1) / p ^ 2 *
+        (⟪toL2 μ (fun x => F' x ^ (p / 2)), toL2 μ (fun x => F' x ^ (p / 2))⟫_ℝ -
+          ⟪toL2 μ (fun x => F' x ^ (p / 2)), T (toL2 μ (fun x => F' x ^ (p / 2)))⟫_ℝ) ≤
+      ⟪toL2 μ (fun x => F' x), toL2 μ (fun x => F' x ^ (p - 1))⟫_ℝ -
+        ⟪toL2 μ (fun x => F' x), T (toL2 μ (fun x => F' x ^ (p - 1)))⟫_ℝ := by
+  have h1 := form_eq_double_sum T hcons hF' hV (fun s => s) (fun s => s ^ (p - 1))
+  have h2 := form_eq_double_sum T hcons hF' hV (fun s => s ^ (p / 2)) (fun s => s ^ (p / 2))
+  rw [h1, h2]
+  set t : ℝ → ℝ → ℝ := fun v w => ⟪toL2 μ (lev F' v), T (toL2 μ (lev F' w))⟫_ℝ with ht_def
+  have ht_symm : ∀ v w, t v w = t w v := by
+    intro v w
+    simp only [ht_def]
+    rw [hsymm, real_inner_comm]
+  have hlev_nonneg : ∀ v, 0 ≤ toL2 μ (lev F' v) := by
+    intro v
+    refine (Lp.coeFn_nonneg _).mp ?_
+    filter_upwards [coeFn_toL2 (memLp_lev hF' v) (μ := μ)] with x hx
+    rw [hx]; simp only [lev, Pi.zero_apply]; split_ifs <;> norm_num
+  have ht_nonneg : ∀ v w, 0 ≤ t v w := fun v w =>
+    inner_nonneg_of_nonneg (hlev_nonneg v) (hpos _ (hlev_nonneg w))
+  set c := 4 * (p - 1) / p ^ 2
+  set A : ℝ → ℝ → ℝ := fun v w =>
+    t v w * (v * (v ^ (p - 1) - w ^ (p - 1))) -
+      c * (t v w * (v ^ (p / 2) * (v ^ (p / 2) - w ^ (p / 2)))) with hA_def
+  have hsum : ∑ v ∈ V, ∑ w ∈ V, A v w =
+      (∑ v ∈ V, ∑ w ∈ V, t v w * (v * (v ^ (p - 1) - w ^ (p - 1)))) -
+        c * ∑ v ∈ V, ∑ w ∈ V, t v w * (v ^ (p / 2) * (v ^ (p / 2) - w ^ (p / 2))) := by
+    simp only [hA_def, Finset.sum_sub_distrib, Finset.mul_sum]
+  have hswap : ∑ v ∈ V, ∑ w ∈ V, A v w = ∑ v ∈ V, ∑ w ∈ V, A w v := Finset.sum_comm
+  have hpair : ∀ v ∈ V, ∀ w ∈ V, 0 ≤ A v w + A w v := by
+    intro v hv w hw
+    have hsc := sv_scalar hp (hV0 v hv) (hV0 w hw)
+    have : A v w + A w v = t v w * ((v - w) * (v ^ (p - 1) - w ^ (p - 1)) -
+        c * (v ^ (p / 2) - w ^ (p / 2)) ^ 2) := by
+      simp only [hA_def]; rw [ht_symm w v]; ring
+    rw [this]
+    exact mul_nonneg (ht_nonneg v w) (by linarith)
+  have hdouble : ∑ v ∈ V, ∑ w ∈ V, (A v w + A w v) = 2 * ∑ v ∈ V, ∑ w ∈ V, A v w := by
+    simp only [Finset.sum_add_distrib]; rw [← hswap]; ring
+  have h2A : 0 ≤ 2 * ∑ v ∈ V, ∑ w ∈ V, A v w := by
+    rw [← hdouble]
+    exact Finset.sum_nonneg fun v hv => Finset.sum_nonneg fun w hw => hpair v hv w hw
+  have : 0 ≤ ∑ v ∈ V, ∑ w ∈ V, A v w := by linarith
+  rw [hsum] at this
+  linarith
+
+/-- `L²` convergence of `φ ∘ Fₙ` under uniform convergence `Fₙ → F` in `[0, M]`. -/
+lemma tendsto_toL2_comp {φ : ℝ → ℝ} (hφ : Continuous φ) {M : ℝ} {F : X → ℝ}
+    {Fn : ℕ → X → ℝ} (hFm : Measurable F) (hFnm : ∀ n, Measurable (Fn n))
+    (hF : ∀ x, F x ∈ Set.Icc 0 M) (hFn : ∀ n x, Fn n x ∈ Set.Icc 0 M)
+    (hconv : ∀ n x, |Fn n x - F x| ≤ 1 / ((n : ℝ) + 1)) :
+    Filter.Tendsto (fun n => toL2 μ (fun x => φ (Fn n x))) Filter.atTop
+      (nhds (toL2 μ (fun x => φ (F x)))) := by
+  obtain ⟨C, hC⟩ := isCompact_Icc.exists_bound_of_continuousOn (f := φ)
+    (s := Set.Icc 0 M) hφ.continuousOn
+  have hmem : ∀ G : X → ℝ, Measurable G → (∀ x, G x ∈ Set.Icc 0 M) →
+      MemLp (fun x => φ (G x)) 2 μ := fun G hG hGI =>
+    memLp_of_abs_le (hφ.measurable.comp hG).aestronglyMeasurable (C := C) fun x => by
+      rw [← Real.norm_eq_abs]; exact hC _ (hGI x)
+  have huc := isCompact_Icc.uniformContinuousOn_of_continuous (s := Set.Icc (0 : ℝ) M)
+    hφ.continuousOn
+  rw [Metric.uniformContinuousOn_iff] at huc
+  rw [Metric.tendsto_atTop]
+  intro ε hε
+  obtain ⟨δ, hδ, hδφ⟩ := huc (ε / 2) (by positivity)
+  obtain ⟨N, hN⟩ := exists_nat_one_div_lt hδ
+  refine ⟨N, fun n hn => ?_⟩
+  have hn' : 1 / ((n : ℝ) + 1) < δ :=
+    lt_of_le_of_lt (one_div_le_one_div_of_le (by positivity)
+      (by exact_mod_cast Nat.succ_le_succ hn)) hN
+  rw [dist_eq_norm, toL2_of_memLp (hmem _ (hFnm n) (hFn n)),
+    toL2_of_memLp (hmem _ hFm hF), ← MemLp.toLp_sub]
+  refine lt_of_le_of_lt (Lp.norm_le_of_ae_bound (C := ε / 2) (by positivity) ?_) ?_
+  · filter_upwards [MemLp.coeFn_toLp ((hmem _ (hFnm n) (hFn n)).sub (hmem _ hFm hF))]
+      with x hx
+    rw [hx, Pi.sub_apply, Real.norm_eq_abs, ← Real.dist_eq]
+    exact (hδφ _ (hFn n x) _ (hF x) (by
+      rw [Real.dist_eq]; exact lt_of_le_of_lt (hconv n x) hn')).le
+  · have h1 : (measureUnivNNReal μ : ℝ) = 1 := by simp [measureUnivNNReal]
+    rw [h1, Real.one_rpow, one_mul]
+    linarith
+
+/-- **Stroock–Varopoulos for a Markov operator, bounded case.** For a positive,
+conservative, symmetric `T` on `L²(μ)` and a measurable `F` with values in `[0, M]`,
+`(4(p-1)/p²) ⟪F^{p/2}, (I - T) F^{p/2}⟫ ≤ ⟪F, (I - T) F^{p-1}⟫`. -/
+lemma sv_bounded
+    (hpos : ∀ f : Lp ℝ 2 μ, 0 ≤ f → 0 ≤ T f)
+    (hcons : ∀ f : Lp ℝ 2 μ, (∀ᵐ x ∂μ, (f : X → ℝ) x = 1) → T f = f)
+    (hsymm : ∀ f g : Lp ℝ 2 μ, ⟪f, T g⟫_ℝ = ⟪T f, g⟫_ℝ)
+    {p : ℝ} (hp : 1 < p) {F : X → ℝ} (hF : Measurable F) {M : ℝ}
+    (hFM : ∀ x, F x ∈ Set.Icc 0 M) :
+    4 * (p - 1) / p ^ 2 *
+        (⟪toL2 μ (fun x => F x ^ (p / 2)), toL2 μ (fun x => F x ^ (p / 2))⟫_ℝ -
+          ⟪toL2 μ (fun x => F x ^ (p / 2)), T (toL2 μ (fun x => F x ^ (p / 2)))⟫_ℝ) ≤
+      ⟪toL2 μ (fun x => F x), toL2 μ (fun x => F x ^ (p - 1))⟫_ℝ -
+        ⟪toL2 μ (fun x => F x), T (toL2 μ (fun x => F x ^ (p - 1)))⟫_ℝ := by
+  -- dyadic-free floor discretization
+  set Fn : ℕ → X → ℝ := fun n x => (⌊((n : ℝ) + 1) * F x⌋₊ : ℝ) / ((n : ℝ) + 1)
+    with hFn_def
+  have hFnm : ∀ n, Measurable (Fn n) := fun n =>
+    (measurable_from_nat.comp (Measurable.nat_floor (hF.const_mul _))).div_const _
+  have hpos' : ∀ n : ℕ, (0 : ℝ) < (n : ℝ) + 1 := fun n => by positivity
+  have hFn_le : ∀ (n : ℕ) x, Fn n x ≤ F x := by
+    intro n x
+    simp only [hFn_def]
+    rw [div_le_iff₀ (hpos' n)]
+    exact (Nat.floor_le (mul_nonneg (hpos' n).le (hFM x).1)).trans (le_of_eq (mul_comm _ _))
+  have hFn_ge : ∀ (n : ℕ) x, F x - 1 / ((n : ℝ) + 1) < Fn n x := by
+    intro n x
+    simp only [hFn_def]
+    rw [lt_div_iff₀ (hpos' n), sub_mul, one_div, inv_mul_cancel₀ (hpos' n).ne', mul_comm]
+    linarith [Nat.lt_floor_add_one (((n : ℝ) + 1) * F x)]
+  have hFn_nonneg : ∀ (n : ℕ) x, 0 ≤ Fn n x := fun n x => by
+    simp only [hFn_def]; positivity
+  have hFnI : ∀ (n : ℕ) x, Fn n x ∈ Set.Icc 0 M := fun n x =>
+    ⟨hFn_nonneg n x, (hFn_le n x).trans (hFM x).2⟩
+  have hconv : ∀ (n : ℕ) x, |Fn n x - F x| ≤ 1 / ((n : ℝ) + 1) := by
+    intro n x
+    rw [abs_le]; constructor <;> linarith [hFn_le n x, hFn_ge n x]
+  -- finite value sets
+  have hfin : ∀ n, ∃ V : Finset ℝ, (∀ x, Fn n x ∈ V) ∧ ∀ v ∈ V, 0 ≤ v := by
+    intro n
+    refine ⟨(Finset.range (⌊((n : ℝ) + 1) * M⌋₊ + 1)).image
+      (fun k : ℕ => (k : ℝ) / ((n : ℝ) + 1)), fun x => ?_, fun v hv => ?_⟩
+    · refine Finset.mem_image.mpr ⟨⌊((n : ℝ) + 1) * F x⌋₊, ?_, rfl⟩
+      rw [Finset.mem_range, Nat.lt_succ_iff]
+      exact Nat.floor_le_floor (mul_le_mul_of_nonneg_left (hFM x).2 (hpos' n).le)
+    · obtain ⟨k, -, rfl⟩ := Finset.mem_image.mp hv
+      positivity
+  have hstep : ∀ n, 4 * (p - 1) / p ^ 2 *
+        (⟪toL2 μ (fun x => Fn n x ^ (p / 2)), toL2 μ (fun x => Fn n x ^ (p / 2))⟫_ℝ -
+          ⟪toL2 μ (fun x => Fn n x ^ (p / 2)), T (toL2 μ (fun x => Fn n x ^ (p / 2)))⟫_ℝ) ≤
+      ⟪toL2 μ (fun x => Fn n x), toL2 μ (fun x => Fn n x ^ (p - 1))⟫_ℝ -
+        ⟪toL2 μ (fun x => Fn n x), T (toL2 μ (fun x => Fn n x ^ (p - 1)))⟫_ℝ := by
+    intro n
+    obtain ⟨V, hV, hV0⟩ := hfin n
+    exact sv_finite T hpos hcons hsymm hp (hFnm n) hV hV0
+  have hu := tendsto_toL2_comp (μ := μ) (Real.continuous_rpow_const (by linarith : 0 ≤ p / 2))
+    hF hFnm hFM hFnI hconv
+  have hg := tendsto_toL2_comp (μ := μ) (Real.continuous_rpow_const (by linarith : 0 ≤ p - 1))
+    hF hFnm hFM hFnI hconv
+  have hid := tendsto_toL2_comp (μ := μ) continuous_id hF hFnm hFM hFnI hconv
+  have hT := T.continuous.tendsto
+  refine le_of_tendsto_of_tendsto' (b := Filter.atTop) ?_ ?_ hstep
+  · exact ((hu.inner hu).sub (hu.inner ((hT _).comp hu))).const_mul _
+  · exact (hid.inner hg).sub (hid.inner ((hT _).comp hg))
+
+end Operator
+
+end MarkovOperator
+
+open MarkovOperator in
+/-- **Stroock–Varopoulos inequality** (proved).
 
 For a `DirichletMarkovSemigroup` `D`, any nonnegative `f ∈ D.IsCore`,
 any `p > 1`, and assuming `f^{p/2}` and `f^{p-1}` lie in the core:
@@ -616,19 +1017,97 @@ path `q(s) = 1+(p₀-1)e^{2ρs}` visits for `p₀ > 1`. S–V holds throughout
 In operator form (using `E(f, g) = -⟨[f], L[g]⟩` on the core):
   `-⟨[f^{p−1}], L[f]⟩ ≥ (4(p − 1) / p²) · ⟨-[L(f^{p/2})], [f^{p/2}]⟩`.
 
+Proof: for each `t ≥ 0`, `P_t` is positive, conservative and symmetric on
+`L²(μ)`, and `MarkovOperator.sv_bounded` gives
+`(4(p-1)/p²)⟪u, (I - P_t)u⟫ ≤ ⟪f, (I - P_t)f^{p-1}⟫` for `u = f^{p/2}` (for
+finite-valued `f` this is a double sum over level sets with nonnegative
+weights `⟪1_{f=v}, P_t 1_{f=w}⟫`, controlled by the scalar inequality
+`MarkovOperator.sv_scalar`; general bounded `f` by uniform approximation).
+Dividing by `t` and letting `t → 0⁺` through `energy_eq_deriv` gives the
+claim.
+
 This is the key intermediate-step lemma in Gross's proof that LSI
 implies hypercontractivity. Combined with LSI applied to `f^{p/2}`
 and the chain rule for `(d/dt) ‖P_t f‖_p^p`, it closes the
 differential inequality `(d/dt) ‖P_t f‖_{q(t)} ≤ 0` along the path
 `q(t) = 1 + (p − 1) · e^{2ρt}`. -/
-axiom stroock_varopoulos {X : Type*} [MeasurableSpace X]
+theorem stroock_varopoulos {X : Type*} [MeasurableSpace X]
     (D : DirichletMarkovSemigroup X) (p : ℝ) (hp : 1 < p)
     (f : X → ℝ) (hf : D.IsCore f) (hf_nonneg : ∀ x, 0 ≤ f x)
     (hf_p_half : D.IsCore (fun x => f x ^ (p / 2)))
     (hf_p_one : D.IsCore (fun x => f x ^ (p - 1))) :
     (4 * (p - 1) / p ^ 2) *
       D.energy (fun x => f x ^ (p / 2)) (fun x => f x ^ (p / 2)) ≤
-    D.energy f (fun x => f x ^ (p - 1))
+    D.energy f (fun x => f x ^ (p - 1)) := by
+  have : IsProbabilityMeasure D.μ := D.hμ
+  set μ := D.μ
+  -- a bounded measurable modification of `f`
+  obtain ⟨M, hM⟩ := D.IsCore_memLp_top hf
+  have hfm : AEStronglyMeasurable f μ := (D.IsCore_memLp hf).aestronglyMeasurable
+  set F : X → ℝ := fun x => max (min (hfm.mk f x) M) 0 with hF_def
+  have hFm : Measurable F :=
+    ((hfm.stronglyMeasurable_mk.measurable.min measurable_const).max measurable_const)
+  have hFf : F =ᵐ[μ] f := by
+    filter_upwards [hfm.ae_eq_mk, hM] with x h1 h2
+    simp only [hF_def, ← h1]
+    rw [min_eq_left ((le_abs_self _).trans h2), max_eq_left (hf_nonneg x)]
+  have hM0 : 0 ≤ M := by
+    obtain ⟨x, hx⟩ := hM.exists
+    exact (abs_nonneg _).trans hx
+  have hFI : ∀ x, F x ∈ Set.Icc 0 M := fun x =>
+    ⟨le_max_right _ _, max_le (min_le_right _ _) hM0⟩
+  -- the `L²` classes of the three core functions, through `F`
+  have hcl : ∀ (χ : ℝ → ℝ), Continuous χ → ∀ {g : X → ℝ} (hg : D.IsCore g),
+      (∀ x, g x = χ (f x)) →
+      (D.IsCore_memLp hg).toLp g = toL2 μ (fun x => χ (F x)) := by
+    intro χ hχ g hg hgχ
+    obtain ⟨C, hC⟩ := isCompact_Icc.exists_bound_of_continuousOn (f := χ)
+      (s := Set.Icc 0 M) hχ.continuousOn
+    have hmem : MemLp (fun x => χ (F x)) 2 μ :=
+      memLp_of_abs_le (hχ.measurable.comp hFm).aestronglyMeasurable (C := C) fun x => by
+        rw [← Real.norm_eq_abs]; exact hC _ (hFI x)
+    rw [← toL2_of_memLp (D.IsCore_memLp hg)]
+    refine toL2_congr (D.IsCore_memLp hg) hmem ?_
+    filter_upwards [hFf] with x hx
+    rw [hgχ x, hx]
+  have hf_cl := hcl (fun s => s) continuous_id hf (fun x => rfl)
+  have hu_cl := hcl (fun s => s ^ (p / 2)) (Real.continuous_rpow_const (by linarith))
+    hf_p_half (fun x => rfl)
+  have hg_cl := hcl (fun s => s ^ (p - 1)) (Real.continuous_rpow_const (by linarith))
+    hf_p_one (fun x => rfl)
+  set uh := toL2 μ (fun x => F x ^ (p / 2))
+  set fh := toL2 μ (fun x => F x)
+  set gh := toL2 μ (fun x => F x ^ (p - 1))
+  have hA := D.energy_eq_deriv _ _ hf_p_half hf_p_half
+  have hB := D.energy_eq_deriv _ _ hf hf_p_one
+  simp only at hA hB
+  rw [hu_cl] at hA
+  rw [hf_cl, hg_cl] at hB
+  -- per-time inequality
+  have hstep : ∀ t : ℝ, 0 ≤ t →
+      4 * (p - 1) / p ^ 2 * (⟪uh, uh⟫_ℝ - ⟪uh, D.P t uh⟫_ℝ) ≤ ⟪fh, gh⟫_ℝ - ⟪fh, D.P t gh⟫_ℝ :=
+    fun t ht => sv_bounded (D.P t) (D.P_positivity t ht) (D.P_conservation t ht)
+      (D.P_symmetric t ht) hp hFm hFI
+  have hP0 : ∀ g : Lp ℝ 2 μ, D.P 0 g = g := fun g => by
+    rw [D.P_zero, ContinuousLinearMap.id_apply]
+  -- pass to the limit `t → 0⁺`
+  have hset : Set.Ici (0 : ℝ) \ {0} = Set.Ioi 0 := by
+    ext x
+    simp only [Set.mem_sdiff, Set.mem_Ici, Set.mem_singleton_iff, Set.mem_Ioi]
+    exact ⟨fun h => lt_of_le_of_ne h.1 (Ne.symm h.2), fun h => ⟨h.le, h.ne'⟩⟩
+  have hA' := hasDerivWithinAt_iff_tendsto_slope.mp hA
+  have hB' := hasDerivWithinAt_iff_tendsto_slope.mp hB
+  rw [hset] at hA' hB'
+  have hlim : 4 * (p - 1) / p ^ 2 * -(-D.energy (fun x => f x ^ (p / 2))
+      (fun x => f x ^ (p / 2))) ≤ -(-D.energy f (fun x => f x ^ (p - 1))) := by
+    refine le_of_tendsto_of_tendsto (hA'.neg.const_mul _) hB'.neg ?_
+    filter_upwards [self_mem_nhdsWithin] with t ht
+    have ht0 : (0 : ℝ) < t := ht
+    have h := hstep t ht0.le
+    simp only [slope_def_field, sub_zero, hP0]
+    rw [← neg_div, ← neg_div, neg_sub, neg_sub, mul_div_assoc', div_le_div_iff_of_pos_right ht0]
+    exact h
+  simpa using hlim
 
 /-! ## Gross's theorem -/
 
