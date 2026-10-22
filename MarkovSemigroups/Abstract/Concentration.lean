@@ -12,10 +12,6 @@ constant `c > 0` makes Lipschitz functions sub-Gaussian, with rate
   μ({x : F x − E_μ F > t}) ≤ exp(−c · t² / (2 L²)).
 
 This is the Otto-Villani / Herbst concentration consequence of LSI.
-For the DZ layer's `global_lsi_of_zegarlinski`, this composes to give
-sub-Gaussian concentration of Lipschitz observables on the Gibbs
-measure. The corollary `lipschitz_concentration_of_zegarlinski`
-(in `DobrushinZegarlinski/`) bundles them.
 
 ## Status
 

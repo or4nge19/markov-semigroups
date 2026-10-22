@@ -47,7 +47,6 @@ import MarkovSemigroups.DobrushinZegarlinski.InteractionMatrix
 import MarkovSemigroups.DobrushinZegarlinski.LocalLSI
 import MarkovSemigroups.DobrushinZegarlinski.GlobalLSI
 import MarkovSemigroups.DobrushinZegarlinski.EntrywiseCovariance
-import MarkovSemigroups.DobrushinZegarlinski.Concentration
 
 -- (Wiener chaos / multivariate Hermite / OU eigenfunctions /
 -- polynomial-chaos concentration moved to gaussian-hilbert as
