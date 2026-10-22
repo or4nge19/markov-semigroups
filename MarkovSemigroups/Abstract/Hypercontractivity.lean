@@ -62,6 +62,8 @@ import Mathlib.MeasureTheory.Function.L2Space
 import Mathlib.Probability.Distributions.Uniform
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
 import Mathlib.MeasureTheory.Function.Floor
+import Mathlib.Analysis.Calculus.ParametricIntegral
+import Mathlib.Analysis.SpecialFunctions.Pow.Deriv
 
 open MeasureTheory ENNReal Set
 open scoped ENNReal InnerProductSpace
@@ -1230,15 +1232,693 @@ theorem not_forall_lsi_implies_hypercontractive :
 
 end DirichletMarkovSemigroup
 
-/-- **Postulated (Gross 1975, Theorem 2).** Hypercontractivity of the
-bundled `L²(μ)` semigroup implies LSI for the bundled Dirichlet form.
+/-! ### Gross's converse: hypercontractivity implies LSI
 
-The proof differentiates the hypercontractive bound at `t = 0` with
-`p = 2`, `q = 2 + ε`, and takes `ε → 0`. -/
-axiom gross_hypercontractive_implies_lsi {X : Type*} [MeasurableSpace X]
+For a core `f` (bounded, in `L²`) and `q(t) = 1 + e^{2ρt}`, Hölder plus
+hypercontractivity `L² → L^{q(t)}` give
+`G(t) = ⟪P_t f, φ_{q(t)}(f)⟫ - ‖f‖₂ (∫ |f|^{q(t)})^{(q(t)-1)/q(t)} ≤ 0` for `t > 0`
+(`φ_q(s) = s |s|^{q-2}`), with `G(0) = 0`. The right derivative at `0` is
+`-E(f,f) + (ρ/2) Ent(f²)`, computed through `energy_eq_deriv` only, so it is `≤ 0`,
+which is the log-Sobolev inequality. -/
+
+section GrossConverseSection
+
+open Filter
+open scoped Topology
+
+namespace GrossODE
+
+/-- **Pointwise `rpow`-exponent derivative** (the elementary calculus
+core, fully proved). For `c : ℝ` and a path `a` with
+`HasDerivAt a a' s`, all values of `a` positive,
+`∂_σ |c|^{a σ} = |c|^{a s} · log|c| · a'` at `s`. The `|c| = 0` case
+is the constant `0` (`0^{a σ} = 0` since `a > 0`), consistent with
+`0^{a s}·log 0·a' = 0`. -/
+theorem hasDerivAt_abs_rpow_exponent (c : ℝ) {a : ℝ → ℝ} {a' s : ℝ}
+    (ha : HasDerivAt a a' s) (ha_pos : ∀ σ, 0 < a σ) :
+    HasDerivAt (fun σ => |c| ^ a σ)
+      (|c| ^ a s * Real.log |c| * a') s := by
+  rcases eq_or_lt_of_le (abs_nonneg c) with hc | hc
+  · -- `|c| = 0`: the function is constantly `0`.
+    have hzero : (fun σ => |c| ^ a σ) = fun _ => (0 : ℝ) := by
+      funext σ; rw [← hc, Real.zero_rpow (ha_pos σ).ne']
+    rw [hzero]
+    have hd : HasDerivAt (fun _ : ℝ => (0 : ℝ)) 0 s := hasDerivAt_const s 0
+    convert hd using 1
+    rw [← hc, Real.zero_rpow (ha_pos s).ne']; ring
+  · -- `|c| > 0`: `|c|^{a σ} = exp (log|c| · a σ)`.
+    have hrw : (fun σ => |c| ^ a σ)
+        = fun σ => Real.exp (Real.log |c| * a σ) := by
+      funext σ; rw [Real.rpow_def_of_pos hc]
+    rw [hrw]
+    have hmul : HasDerivAt (fun σ => Real.log |c| * a σ)
+        (Real.log |c| * a') s := ha.const_mul _
+    have hexp := (Real.hasDerivAt_exp (Real.log |c| * a s)).comp s hmul
+    convert hexp using 1
+    · rfl
+    rw [Real.rpow_def_of_pos hc]; ring
+
+/-- **General (Mathlib-native): parametric `rpow`-exponent Leibniz.**
+For a bounded measurable `w` on a finite measure space and a
+`C¹`-differentiable positive exponent path `a`,
+`σ ↦ ∫ |w|^{a σ}` is differentiable at `s` with derivative
+`a'(s) · ∫ |w|^{a s} · log|w|`. The pointwise exponent
+derivative is `∂_σ |w y|^{a σ} = |w y|^{a σ} · log|w y| · a'`
+(`hasDerivAt_abs_rpow_exponent` above; the `w y = 0` case is constant
+`0` since `a > 0`).
+
+**Strategy** (apply Mathlib
+`hasDerivAt_integral_of_dominated_loc_of_deriv_le`):
+
+* Nbhd `Metric.ball s 1` ⊆ `Icc (s-1) (s+1)`; compactness +
+  `ContDiff ℝ 1 a` give bounds `a_min ≤ a σ ≤ a_max` on `Icc` and
+  `|deriv a σ| ≤ K`. `a_min > 0` from `ha_pos`.
+* Bound on `|F'(σ, y)| = |w y|^{a σ} · |log |w y|| · |deriv a σ|`:
+    - `|w y| ∈ [0, M]` (or `[0, max(M, 1)]`).
+    - For `|w y| ∈ (0, 1]`: `t^a · |log t| ≤ 1/(e · a) ≤ 1/(e · a_min)`
+      (max of `t ↦ t^a · log(1/t)` on `(0,1]` at `t = e^{-1/a}`).
+    - For `|w y| ∈ [1, M]` (M ≥ 1): `t^a · log t ≤ M^{a_max} · log M`.
+    - For `|w y| = 0`: value is 0 (`Real.zero_rpow (ha_pos σ).ne'`).
+  Total bound `B := K · max(1/(e·a_min), max(M, 1)^{a_max} · log max(M, 1))`,
+  a constant ⇒ integrable on finite measure.
+* `h_diff` from `hasDerivAt_abs_rpow_exponent (w y) (ha_cd.differentiable
+  le_rfl).differentiableAt.hasDerivAt ha_pos`.
+* The resulting `∫ F' s = (deriv a s) · ∫ |w|^{a s} · log|w|` via
+  `integral_mul_const`; identify `deriv a s = a'` via `ha.deriv`.
+
+**Effort:** ~150–200 LOC; the `t^a · |log t|` analytic supremum
+(`(e · a)⁻¹` on `(0,1]`) requires a manual proof (not in Mathlib as a
+direct lemma). No project definitions; Mathlib-upstreamable. -/
+theorem hasDerivAt_integral_rpow_exponent {Y : Type*}
+    [MeasurableSpace Y] (ν : Measure Y) [IsFiniteMeasure ν]
+    {w : Y → ℝ} (hw : AEStronglyMeasurable w ν) {M : ℝ}
+    (hM : ∀ᵐ y ∂ν, |w y| ≤ M)
+    {a : ℝ → ℝ} {a' s : ℝ}
+    (ha_cd : ContDiff ℝ 1 a) (ha : HasDerivAt a a' s)
+    (ha_pos : ∀ σ, 0 < a σ) :
+    HasDerivAt (fun σ => ∫ y, |w y| ^ a σ ∂ν)
+      (a' * ∫ y, |w y| ^ a s * Real.log |w y| ∂ν) s := by
+  -- Notation + continuity from ContDiff 1.
+  have ha_cont : Continuous a := ha_cd.continuous
+  have ha_diff : Differentiable ℝ a := ha_cd.differentiable (by decide)
+  have ha_deriv_cont : Continuous (deriv a) := ha_cd.continuous_deriv le_rfl
+  -- Compact J = [s-1, s+1]; bounds.
+  set J : Set ℝ := Set.Icc (s - 1) (s + 1) with hJ_def
+  have hJ_cpt : IsCompact J := isCompact_Icc
+  have hJ_ne : J.Nonempty := ⟨s, by constructor <;> linarith⟩
+  obtain ⟨σ_amin, _, h_amin⟩ := hJ_cpt.exists_isMinOn hJ_ne ha_cont.continuousOn
+  set a_min : ℝ := a σ_amin with ha_min_def
+  have ha_min_pos : 0 < a_min := ha_pos σ_amin
+  obtain ⟨σ_amax, _, h_amax⟩ := hJ_cpt.exists_isMaxOn hJ_ne ha_cont.continuousOn
+  set a_max : ℝ := a σ_amax with ha_max_def
+  have ha_max_pos : 0 < a_max := ha_pos σ_amax
+  obtain ⟨σ_K, _, h_K⟩ := hJ_cpt.exists_isMaxOn hJ_ne
+    (continuous_abs.comp ha_deriv_cont).continuousOn
+  set K : ℝ := |deriv a σ_K| with hK_def
+  have hK_nn : 0 ≤ K := abs_nonneg _
+  set M' : ℝ := max M 1 with hM'_def
+  have hM'_one : (1 : ℝ) ≤ M' := le_max_right _ _
+  have hM'_pos : 0 < M' := lt_of_lt_of_le one_pos hM'_one
+  have hM'_log_nn : 0 ≤ Real.log M' := Real.log_nonneg hM'_one
+  have hw_le_M' : ∀ᵐ y ∂ν, |w y| ≤ M' := by
+    filter_upwards [hM] with y hy
+    exact le_trans hy (le_max_left _ _)
+  set Cprod : ℝ := 1 / (Real.exp 1 * a_min) + M' ^ a_max * Real.log M' with hCprod_def
+  have hCprod_nn : 0 ≤ Cprod := by
+    refine add_nonneg ?_ ?_
+    · positivity
+    · exact mul_nonneg (Real.rpow_nonneg hM'_pos.le _) hM'_log_nn
+  set B : ℝ := K * Cprod with hB_def
+  have hB_nn : 0 ≤ B := mul_nonneg hK_nn hCprod_nn
+  -- Open neighborhood `ball s 1 ⊆ J`.
+  set U : Set ℝ := Metric.ball s 1 with hU_def
+  have hU_subJ : U ⊆ J := by
+    intro x hx
+    rw [Metric.mem_ball, Real.dist_eq] at hx
+    refine ⟨?_, ?_⟩ <;> [linarith [abs_lt.mp hx]; linarith [abs_lt.mp hx]]
+  have hU_nhds : U ∈ nhds s := Metric.ball_mem_nhds s one_pos
+  -- Pointwise bound on `t ^ a σ * log t` for `t ∈ [0, M']` and `a σ ∈ [a_min, a_max]`.
+  have h_prod_bound : ∀ (t : ℝ) (_ : 0 ≤ t) (_ : t ≤ M') (σ : ℝ) (_ : σ ∈ J),
+      |t ^ a σ * Real.log t| ≤ Cprod := by
+    intro t ht_nn ht_M' σ hσ
+    have ha_σ_pos : 0 < a σ := ha_pos σ
+    have h_amin_le : a_min ≤ a σ := h_amin hσ
+    have h_amax_ge : a σ ≤ a_max := h_amax hσ
+    have hM'_term_nn : 0 ≤ M' ^ a_max * Real.log M' :=
+      mul_nonneg (Real.rpow_nonneg hM'_pos.le _) hM'_log_nn
+    have hEmin_nn : (0:ℝ) ≤ 1 / (Real.exp 1 * a_min) := by positivity
+    rcases eq_or_lt_of_le ht_nn with ht_eq | ht_pos
+    · -- t = 0: |0^{a σ} * log 0| = 0 ≤ Cprod.
+      have h0 : |t ^ a σ * Real.log t| = 0 := by
+        rw [show t = 0 from ht_eq.symm, Real.zero_rpow ha_σ_pos.ne']
+        simp
+      linarith
+    rcases le_or_gt t 1 with ht_le1 | ht_gt1
+    · -- t ∈ (0, 1].
+      have hlog_np : Real.log t ≤ 0 := Real.log_nonpos ht_nn ht_le1
+      have h_abs : |t ^ a σ * Real.log t| = t ^ a σ * (-Real.log t) := by
+        rw [abs_mul, abs_of_nonneg (Real.rpow_nonneg ht_nn _),
+            abs_of_nonpos hlog_np]
+      rw [h_abs]
+      -- y := a σ · (-log t) ≥ 0. Apply mul_exp_neg_le_exp_neg_one.
+      have h_y_bd :
+          a σ * (-Real.log t) * Real.exp (-(a σ * (-Real.log t))) ≤ Real.exp (-1) :=
+        Real.mul_exp_neg_le_exp_neg_one _
+      have h_exp_eq : Real.exp (-(a σ * (-Real.log t))) = t ^ a σ := by
+        have h_eq : -(a σ * (-Real.log t)) = Real.log t * a σ := by ring
+        rw [h_eq, ← Real.rpow_def_of_pos ht_pos]
+      rw [h_exp_eq] at h_y_bd
+      -- (-log t) · t^{a σ} ≤ exp(-1) / (a σ) = 1/(e·a σ) ≤ 1/(e·a_min).
+      have h_div : t ^ a σ * (-Real.log t) ≤ 1 / (Real.exp 1 * a σ) := by
+        rw [le_div_iff₀ (by positivity : (0:ℝ) < Real.exp 1 * a σ)]
+        have h_calc :
+            t ^ a σ * (-Real.log t) * (Real.exp 1 * a σ)
+              = a σ * (-Real.log t) * t ^ a σ * Real.exp 1 := by ring
+        rw [h_calc]
+        have hexp1_nn : (0 : ℝ) ≤ Real.exp 1 := (Real.exp_pos 1).le
+        calc a σ * (-Real.log t) * t ^ a σ * Real.exp 1
+            ≤ Real.exp (-1) * Real.exp 1 :=
+                mul_le_mul_of_nonneg_right h_y_bd hexp1_nn
+          _ = 1 := by
+                rw [← Real.exp_add, neg_add_cancel, Real.exp_zero]
+      have h_div_amin : 1 / (Real.exp 1 * a σ) ≤ 1 / (Real.exp 1 * a_min) := by
+        apply one_div_le_one_div_of_le
+        · positivity
+        · exact mul_le_mul_of_nonneg_left h_amin_le (Real.exp_pos 1).le
+      linarith
+    · -- t ∈ (1, M'].
+      have ht_pos : 0 < t := lt_trans one_pos ht_gt1
+      have hlog_nn : 0 ≤ Real.log t := Real.log_nonneg ht_gt1.le
+      have h_abs : |t ^ a σ * Real.log t| = t ^ a σ * Real.log t := by
+        rw [abs_of_nonneg (mul_nonneg (Real.rpow_nonneg ht_nn _) hlog_nn)]
+      rw [h_abs]
+      have h_pow_le_t_amax : t ^ a σ ≤ t ^ a_max :=
+        Real.rpow_le_rpow_of_exponent_le ht_gt1.le h_amax_ge
+      have h_t_amax_le : t ^ a_max ≤ M' ^ a_max :=
+        Real.rpow_le_rpow ht_nn ht_M' ha_max_pos.le
+      have h_pow_le : t ^ a σ ≤ M' ^ a_max := le_trans h_pow_le_t_amax h_t_amax_le
+      have h_log_le : Real.log t ≤ Real.log M' :=
+        Real.log_le_log ht_pos ht_M'
+      have h_prod_le : t ^ a σ * Real.log t ≤ M' ^ a_max * Real.log M' := by
+        gcongr
+      linarith
+  -- Apply the parametric Leibniz lemma.
+  have ha'_eq : a' = deriv a s := ha.deriv.symm
+  -- F σ y := |w y|^{a σ}; F' σ y := |w y|^{a σ} · log|w y| · deriv a σ.
+  set F : ℝ → Y → ℝ := fun σ y => |w y| ^ a σ with hF_def
+  set F' : ℝ → Y → ℝ := fun σ y => |w y| ^ a σ * Real.log |w y| * deriv a σ
+    with hF'_def
+  -- AEStronglyMeasurable of `F σ` and `F' σ`.
+  have hF_aesm : ∀ σ, AEStronglyMeasurable (F σ) ν := fun σ => by
+    show AEStronglyMeasurable (fun y => |w y| ^ a σ) ν
+    exact (continuous_abs.rpow_const
+      (fun _ => Or.inr (ha_pos σ).le)).comp_aestronglyMeasurable hw
+  have hF'_aesm : ∀ σ, AEStronglyMeasurable (F' σ) ν := fun σ => by
+    show AEStronglyMeasurable (fun y => |w y| ^ a σ * Real.log |w y| * deriv a σ) ν
+    refine ((hF_aesm σ).mul ?_).mul_const _
+    -- AEStronglyMeasurable (fun y => Real.log |w y|) ν.
+    refine (Real.measurable_log.comp_aemeasurable ?_).aestronglyMeasurable
+    exact (continuous_abs.comp_aestronglyMeasurable hw).aemeasurable
+  -- Bound: ‖F' σ y‖ ≤ B for σ ∈ U, a.e. y.
+  have h_F'_bound : ∀ᵐ y ∂ν, ∀ σ ∈ U, ‖F' σ y‖ ≤ B := by
+    filter_upwards [hw_le_M'] with y hy_M' σ hσU
+    have hσ_J : σ ∈ J := hU_subJ hσU
+    have hd_le : |deriv a σ| ≤ K := h_K hσ_J
+    have hprod := h_prod_bound (|w y|) (abs_nonneg _) hy_M' σ hσ_J
+    have : ‖F' σ y‖ = |F' σ y| := Real.norm_eq_abs _
+    rw [this]
+    show |(|w y| ^ a σ * Real.log |w y|) * deriv a σ| ≤ K * Cprod
+    rw [abs_mul]
+    calc |(|w y| ^ a σ * Real.log |w y|)| * |deriv a σ|
+        ≤ Cprod * K := mul_le_mul hprod hd_le (abs_nonneg _) hCprod_nn
+      _ = K * Cprod := by ring
+  -- Integrable F s.
+  have hFs_int : Integrable (F s) ν := by
+    refine Integrable.mono' (g := fun _ => M' ^ a_max + 1) (integrable_const _)
+      (hF_aesm s) ?_
+    filter_upwards [hw_le_M'] with y hy_M'
+    show ‖|w y| ^ a s‖ ≤ M' ^ a_max + 1
+    rw [Real.norm_eq_abs, abs_of_nonneg (Real.rpow_nonneg (abs_nonneg _) _)]
+    have hs_J : s ∈ J := ⟨by linarith, by linarith⟩
+    have has_max : a s ≤ a_max := h_amax hs_J
+    rcases le_or_gt (|w y|) 1 with hle | hgt
+    · have : |w y| ^ a s ≤ 1 := Real.rpow_le_one (abs_nonneg _) hle (ha_pos s).le
+      linarith [Real.rpow_nonneg hM'_pos.le a_max]
+    · have h_pow : |w y| ^ a s ≤ M' ^ a_max := by
+        calc |w y| ^ a s ≤ |w y| ^ a_max :=
+              Real.rpow_le_rpow_of_exponent_le hgt.le has_max
+          _ ≤ M' ^ a_max := Real.rpow_le_rpow (abs_nonneg _) hy_M' ha_max_pos.le
+      linarith
+  -- h_diff: pointwise differentiability for σ ∈ U (holds for all y).
+  have h_diff : ∀ᵐ y ∂ν, ∀ σ ∈ U, HasDerivAt (fun σ' => |w y| ^ a σ') (F' σ y) σ := by
+    refine Filter.Eventually.of_forall (fun y σ _ => ?_)
+    exact hasDerivAt_abs_rpow_exponent (w y) (ha_diff.differentiableAt.hasDerivAt) ha_pos
+  -- Apply hasDerivAt_integral_of_dominated_loc_of_deriv_le.
+  have h_main :
+      Integrable (F' s) ν ∧
+      HasDerivAt (fun σ => ∫ y, F σ y ∂ν) (∫ y, F' s y ∂ν) s := by
+    apply hasDerivAt_integral_of_dominated_loc_of_deriv_le hU_nhds
+      (Filter.Eventually.of_forall hF_aesm) hFs_int (hF'_aesm s)
+      h_F'_bound
+      (integrable_const _)
+      h_diff
+  -- Identify ∫ F' s = a' * ∫ |w|^{a s} · log|w|.
+  have h_int_F's : ∫ y, F' s y ∂ν =
+      deriv a s * ∫ y, |w y| ^ a s * Real.log |w y| ∂ν := by
+    show ∫ y, |w y| ^ a s * Real.log |w y| * deriv a s ∂ν
+        = deriv a s * ∫ y, |w y| ^ a s * Real.log |w y| ∂ν
+    rw [integral_mul_const, mul_comm]
+  convert h_main.2 using 1
+  rw [h_int_F's, ha.deriv]
+
+end GrossODE
+
+namespace GrossConverse
+
+/-- The critical exponent path `q(t) = 1 + e^{2ρt}` from `p = 2`. -/
+def expPath (ρ t : ℝ) : ℝ := 1 + Real.exp (2 * ρ * t)
+
+/-- The duality map `φ_q(s) = s · |s|^{q-2}`, so that `s · φ_q(s) = |s|^q`. -/
+def dualPow (q s : ℝ) : ℝ := s * |s| ^ (q - 2)
+
+/-- `q(0) = 2`. -/
+lemma expPath_zero (ρ : ℝ) : expPath ρ 0 = 2 := by
+  simp [expPath]; norm_num
+
+/-- `q(t) > 0`. -/
+lemma expPath_pos (ρ t : ℝ) : 0 < expPath ρ t := by
+  unfold expPath; positivity
+
+/-- `q(t) > 1`. -/
+lemma one_lt_expPath (ρ t : ℝ) : 1 < expPath ρ t := by
+  unfold expPath; linarith [Real.exp_pos (2 * ρ * t)]
+
+/-- `q(t) ≥ 2` for `ρ, t ≥ 0`. -/
+lemma two_le_expPath {ρ t : ℝ} (hρ : 0 ≤ ρ) (ht : 0 ≤ t) : 2 ≤ expPath ρ t := by
+  unfold expPath
+  have : 1 ≤ Real.exp (2 * ρ * t) := Real.one_le_exp (by positivity)
+  linarith
+
+/-- `q'(t) = 2ρ e^{2ρt}`. -/
+lemma hasDerivAt_expPath (ρ t : ℝ) :
+    HasDerivAt (expPath ρ) (Real.exp (2 * ρ * t) * (2 * ρ)) t := by
+  have h := (((hasDerivAt_id t).const_mul (2 * ρ)).exp).const_add 1
+  show HasDerivAt (fun t => 1 + Real.exp (2 * ρ * t)) _ t
+  convert h using 1 <;> simp
+
+/-- `q'(0) = 2ρ`. -/
+lemma hasDerivAt_expPath_zero (ρ : ℝ) : HasDerivAt (expPath ρ) (2 * ρ) 0 := by
+  simpa using hasDerivAt_expPath ρ 0
+
+/-- The exponent path is `C¹`. -/
+lemma contDiff_expPath (ρ : ℝ) : ContDiff ℝ 1 (expPath ρ) := by
+  unfold expPath; fun_prop
+
+/-- `φ_2(s) = s`. -/
+lemma dualPow_two (s : ℝ) : dualPow 2 s = s := by
+  simp [dualPow]
+
+/-- `s · φ_q(s) = |s|^q` for `q > 0`. -/
+lemma mul_dualPow {q : ℝ} (hq : 0 < q) (s : ℝ) : s * dualPow q s = |s| ^ q := by
+  unfold dualPow
+  have h : |s| ^ q = |s| ^ ((2 : ℝ) + (q - 2)) := by ring_nf
+  rw [h, Real.rpow_add' (abs_nonneg s) (by linarith), Real.rpow_two, sq_abs]
+  ring
+
+/-- `|φ_q(s)| = |s|^{q-1}` for `q > 1`. -/
+lemma abs_dualPow {q : ℝ} (hq : 1 < q) (s : ℝ) : |dualPow q s| = |s| ^ (q - 1) := by
+  unfold dualPow
+  have h : |s| ^ (q - 1) = |s| ^ ((1 : ℝ) + (q - 2)) := by ring_nf
+  rw [h, Real.rpow_add' (abs_nonneg s) (by linarith), Real.rpow_one, abs_mul,
+    abs_of_nonneg (Real.rpow_nonneg (abs_nonneg s) _)]
+
+/-- The duality map is measurable. -/
+lemma measurable_dualPow (q : ℝ) : Measurable (dualPow q) := by
+  unfold dualPow
+  exact measurable_id.mul (continuous_abs.measurable.pow_const _)
+
+/-- Elementary bound: `|u (u^r - 1)| ≤ r (1 + M³)` for `0 ≤ u ≤ M`, `r ∈ [0, 1]`. -/
+lemma abs_mul_rpow_sub_one_le {u r M : ℝ} (hu : 0 ≤ u) (huM : u ≤ M) (hr : 0 ≤ r)
+    (hr1 : r ≤ 1) : |u * (u ^ r - 1)| ≤ r * (1 + M ^ 3) := by
+  have hM0 : 0 ≤ M := hu.trans huM
+  have hM3 : 0 ≤ M ^ 3 := pow_nonneg hM0 3
+  rcases hu.eq_or_lt with h0 | hpos
+  · subst h0; simp; positivity
+  have hur : u ^ r = Real.exp (Real.log u * r) := Real.rpow_def_of_pos hpos r
+  rcases le_or_gt u 1 with hle | hgt
+  · -- `u ≤ 1`: `0 ≤ 1 - u^r ≤ -r log u` and `-u log u ≤ 1`.
+    have hlog : Real.log u ≤ 0 := Real.log_nonpos hu hle
+    have hle1 : u ^ r ≤ 1 := Real.rpow_le_one hu hle hr
+    have hexp := Real.add_one_le_exp (Real.log u * r)
+    rw [← hur] at hexp
+    have hul : |Real.log u * u| < 1 := Real.abs_log_mul_self_lt u hpos hle
+    have hul' : -(Real.log u * u) ≤ 1 := by linarith [neg_abs_le (Real.log u * u)]
+    rw [abs_of_nonpos (mul_nonpos_of_nonneg_of_nonpos hu (by linarith))]
+    have h1 : u * (1 - u ^ r) ≤ u * (-(Real.log u * r)) :=
+      mul_le_mul_of_nonneg_left (by linarith) hu
+    have h2 : u * (-(Real.log u * r)) = r * (-(Real.log u * u)) := by ring
+    nlinarith
+  · -- `u > 1`: `0 ≤ u^r - 1 ≤ r log u · u^r ≤ r u log u ≤ r u²`.
+    have hlog : 0 ≤ Real.log u := Real.log_nonneg hgt.le
+    have hge1 : 1 ≤ u ^ r := Real.one_le_rpow hgt.le hr
+    have hur_le : u ^ r ≤ u := by
+      calc u ^ r ≤ u ^ (1 : ℝ) := Real.rpow_le_rpow_of_exponent_le hgt.le hr1
+        _ = u := Real.rpow_one u
+    have hexp := Real.add_one_le_exp (-(Real.log u * r))
+    have hprod : Real.exp (-(Real.log u * r)) * u ^ r = 1 := by
+      rw [hur, ← Real.exp_add, neg_add_cancel, Real.exp_zero]
+    -- `u^r - 1 ≤ r log u · u^r`.
+    have hkey : u ^ r - 1 ≤ Real.log u * r * u ^ r := by
+      have := mul_le_mul_of_nonneg_right hexp (by linarith : (0 : ℝ) ≤ u ^ r)
+      nlinarith
+    have hlogu : Real.log u ≤ u := by
+      have := Real.log_le_sub_one_of_pos hpos; linarith
+    rw [abs_of_nonneg (mul_nonneg hu (by linarith))]
+    have hu3 : u ^ 3 ≤ M ^ 3 := pow_le_pow_left₀ hu huM 3
+    have h1 : u * (u ^ r - 1) ≤ u * (Real.log u * r * u ^ r) :=
+      mul_le_mul_of_nonneg_left hkey hu
+    have h2 : u * (Real.log u * r * u ^ r) ≤ r * u ^ 3 := by
+      have hlr : 0 ≤ Real.log u * r := mul_nonneg hlog hr
+      have : Real.log u * r * u ^ r ≤ u * r * u := by
+        have := mul_le_mul hlogu hur_le (by linarith) hu
+        have := mul_le_mul_of_nonneg_right this hr
+        nlinarith
+      nlinarith
+    nlinarith
+
+/-- Pointwise Lipschitz bound of the duality map in the exponent near `q = 2`. -/
+lemma abs_dualPow_sub_le {q s M : ℝ} (hs : |s| ≤ M) (hq2 : 2 ≤ q) (hq3 : q ≤ 3) :
+    |dualPow q s - s| ≤ (q - 2) * (1 + M ^ 3) := by
+  have h : |dualPow q s - s| = |(|s| * (|s| ^ (q - 2) - 1))| := by
+    unfold dualPow
+    rw [show s * |s| ^ (q - 2) - s = s * (|s| ^ (q - 2) - 1) by ring, abs_mul, abs_mul,
+      abs_abs]
+  rw [h]
+  exact abs_mul_rpow_sub_one_le (abs_nonneg s) hs (by linarith) (by linarith)
+
+/-! ### Hölder plus hypercontractivity -/
+
+variable {X : Type*} [MeasurableSpace X]
+
+/-- **Hölder + hypercontractivity.** For `t > 0`, `q = q(t)` and a bounded `h`,
+`∫ (P_t F) · φ_q(h) ≤ ‖F‖₂ · (∫ |h|^q)^{(q-1)/q}`: Hölder with exponents `q`,
+`q/(q-1)` and `‖P_t F‖_q ≤ ‖F‖_2`. -/
+lemma integral_mul_dualPow_le (S : MarkovSemigroup X) {ρ : ℝ}
+    (h_hyp : S.IsHypercontractive ρ) (F : Lp ℝ 2 S.μ) {t : ℝ} (ht : 0 < t)
+    {h : X → ℝ} (hh : AEStronglyMeasurable h S.μ) {M : ℝ}
+    (hM : ∀ᵐ x ∂S.μ, |h x| ≤ M) :
+    ∫ x, (S.P t F : X → ℝ) x * dualPow (expPath ρ t) (h x) ∂S.μ ≤
+      ‖F‖ * (∫ x, |h x| ^ expPath ρ t ∂S.μ) ^ ((expPath ρ t - 1) / expPath ρ t) := by
+  set q := expPath ρ t with hq_def
+  have hq1 : 1 < q := one_lt_expPath ρ t
+  have hq0 : 0 < q := expPath_pos ρ t
+  set u : X → ℝ := (S.P t F : X → ℝ)
+  have hHC : eLpNorm u (ENNReal.ofReal q) S.μ ≤
+      eLpNorm (F : X → ℝ) (ENNReal.ofReal 2) S.μ :=
+    h_hyp.2 2 q t one_lt_two (two_le_expPath h_hyp.1.le ht.le) ht
+      (by norm_num [hq_def, expPath]) F (by rw [ENNReal.ofReal_ofNat]; exact Lp.memLp F)
+  have hF2 : eLpNorm (F : X → ℝ) (ENNReal.ofReal 2) S.μ ≠ ⊤ := by
+    rw [ENNReal.ofReal_ofNat]; exact Lp.eLpNorm_ne_top F
+  have hu_mem : MemLp u (ENNReal.ofReal q) S.μ :=
+    hHC.trans_lt hF2.lt_top
+  have hu_abs : MemLp (fun x => |u x|) (ENNReal.ofReal q) S.μ := by
+    simpa [Real.norm_eq_abs] using hu_mem.norm
+  set q' := q / (q - 1) with hq'_def
+  have hconj : q.HolderConjugate q' := Real.HolderConjugate.conjExponent hq1
+  have hφ_meas : AEStronglyMeasurable (fun x => |dualPow q (h x)|) S.μ :=
+    continuous_abs.comp_aestronglyMeasurable
+      ((measurable_dualPow q).comp_aemeasurable hh.aemeasurable).aestronglyMeasurable
+  have hφ_mem : MemLp (fun x => |dualPow q (h x)|) (ENNReal.ofReal q') S.μ := by
+    refine MemLp.of_bound hφ_meas (M ^ (q - 1)) ?_
+    filter_upwards [hM] with x hx
+    rw [Real.norm_eq_abs, abs_abs, abs_dualPow hq1]
+    exact Real.rpow_le_rpow (abs_nonneg _) hx (by linarith)
+  have hHolder := integral_mul_le_Lp_mul_Lq_of_nonneg hconj
+    (ae_of_all _ fun x => abs_nonneg (u x))
+    (ae_of_all _ fun x => abs_nonneg (dualPow q (h x))) hu_abs hφ_mem
+  -- the `L^{q'}` factor
+  have hφ_pow : ∀ x, |dualPow q (h x)| ^ q' = |h x| ^ q := by
+    intro x
+    rw [abs_dualPow hq1, ← Real.rpow_mul (abs_nonneg _)]
+    congr 1
+    have hq1' : q - 1 ≠ 0 := by linarith
+    rw [hq'_def]; field_simp
+  simp only [hφ_pow] at hHolder
+  rw [show (1 : ℝ) / q' = (q - 1) / q by rw [hq'_def, one_div_div]] at hHolder
+  -- the `L^q` factor
+  have hnorm : (∫ x, |u x| ^ q ∂S.μ) ^ (1 / q) ≤ ‖F‖ := by
+    have he := hu_mem.eLpNorm_eq_integral_rpow_norm (by simp [hq0]) ENNReal.ofReal_ne_top
+    rw [ENNReal.toReal_ofReal hq0.le] at he
+    have hle := ENNReal.toReal_mono hF2 hHC
+    rw [he, ENNReal.toReal_ofReal (by positivity), ENNReal.ofReal_ofNat, ← Lp.norm_def]
+      at hle
+    simpa [Real.norm_eq_abs, one_div] using hle
+  have hY : 0 ≤ (∫ x, |h x| ^ q ∂S.μ) ^ ((q - 1) / q) :=
+    Real.rpow_nonneg (integral_nonneg fun x => Real.rpow_nonneg (abs_nonneg _) _) _
+  calc ∫ x, u x * dualPow q (h x) ∂S.μ
+      ≤ |∫ x, u x * dualPow q (h x) ∂S.μ| := le_abs_self _
+    _ ≤ ∫ x, |u x * dualPow q (h x)| ∂S.μ := abs_integral_le_integral_abs
+    _ = ∫ x, |u x| * |dualPow q (h x)| ∂S.μ := by simp_rw [abs_mul]
+    _ ≤ _ := hHolder
+    _ ≤ ‖F‖ * (∫ x, |h x| ^ q ∂S.μ) ^ ((q - 1) / q) := mul_le_mul_of_nonneg_right hnorm hY
+
+/-! ### Right-derivative bookkeeping at `t = 0` -/
+
+/-- A right derivative within `Ici 0` at `0` is the limit of the slopes from the right. -/
+lemma tendsto_slope_of_hasDerivWithinAt {g : ℝ → ℝ} {g' : ℝ}
+    (hg : HasDerivWithinAt g g' (Ici 0) 0) :
+    Tendsto (fun t => t⁻¹ * (g t - g 0)) (𝓝[>] 0) (𝓝 g') := by
+  have h := (hasDerivWithinAt_iff_tendsto_slope' (s := Ioi (0 : ℝ)) (by simp)).1
+    (hg.mono Ioi_subset_Ici_self)
+  refine h.congr fun t => ?_
+  rw [slope_def_module, sub_zero, smul_eq_mul]
+
+/-- A two-sided derivative at `0` is the limit of the slopes from the right. -/
+lemma tendsto_slope_of_hasDerivAt {g : ℝ → ℝ} {g' : ℝ} (hg : HasDerivAt g g' 0) :
+    Tendsto (fun t => t⁻¹ * (g t - g 0)) (𝓝[>] 0) (𝓝 g') :=
+  tendsto_slope_of_hasDerivWithinAt hg.hasDerivWithinAt
+
+/-- If `G ≤ 0` on `(0, ∞)` and `G(t)/t → L` as `t → 0⁺`, then `L ≤ 0`. -/
+lemma nonpos_of_tendsto_slope {G : ℝ → ℝ} {L : ℝ}
+    (hG : Tendsto (fun t => t⁻¹ * G t) (𝓝[>] 0) (𝓝 L)) (hneg : ∀ t, 0 < t → G t ≤ 0) :
+    L ≤ 0 := by
+  refine le_of_tendsto hG ?_
+  filter_upwards [self_mem_nhdsWithin] with t ht
+  exact mul_nonpos_of_nonneg_of_nonpos (inv_nonneg.2 (le_of_lt ht)) (hneg t ht)
+
+/-! ### The Gross differentiation at `t = 0` -/
+
+/-- **Gross's converse for one core function, nondegenerate case.** If `P_t` is
+hypercontractive with rate `ρ`, `f` is core and `I = ∫ f² > 0`, then
+`2 ∫ |f|² log|f| - I log I ≤ (2/ρ) E(f, f)`. The proof differentiates at `t = 0⁺` the
+nonpositive function `G(t) = ⟪P_t f, φ_{q(t)}(f)⟫ - ‖f‖₂ (∫ |f|^{q(t)})^{(q(t)-1)/q(t)}`. -/
+theorem entropy_le_of_hypercontractive_of_pos (D : DirichletMarkovSemigroup X) {ρ : ℝ}
+    (h_hyp : D.toMarkovSemigroup.IsHypercontractive ρ) {f : X → ℝ} (hf : D.IsCore f)
+    (hIpos : 0 < ∫ x, |f x| ^ expPath ρ 0 ∂D.μ) :
+    2 * ∫ x, |f x| ^ expPath ρ 0 * Real.log |f x| ∂D.μ -
+        (∫ x, |f x| ^ expPath ρ 0 ∂D.μ) * Real.log (∫ x, |f x| ^ expPath ρ 0 ∂D.μ) ≤
+      2 / ρ * D.energy f f := by
+  have hρ : 0 < ρ := h_hyp.1
+  obtain ⟨M₀, hM₀⟩ := D.IsCore_memLp_top hf
+  set M : ℝ := max M₀ 1
+  have hM : ∀ᵐ x ∂D.μ, |f x| ≤ M := hM₀.mono fun x hx => hx.trans (le_max_left _ _)
+  have hf2 : MemLp f 2 D.μ := D.IsCore_memLp hf
+  have hfm : AEStronglyMeasurable f D.μ := hf2.aestronglyMeasurable
+  set F : Lp ℝ 2 D.μ := hf2.toLp f
+  have hFf : (F : X → ℝ) =ᵐ[D.μ] f := hf2.coeFn_toLp
+  -- The scalar functions `J`, `K` and their derivatives at `0`.
+  set J : ℝ → ℝ := fun t => ∫ x, |f x| ^ expPath ρ t ∂D.μ
+  set I : ℝ := J 0
+  set L : ℝ := ∫ x, |f x| ^ expPath ρ 0 * Real.log |f x| ∂D.μ
+  have hJ_deriv : HasDerivAt J (2 * ρ * L) 0 :=
+    GrossODE.hasDerivAt_integral_rpow_exponent D.μ hfm hM (contDiff_expPath ρ)
+      (hasDerivAt_expPath_zero ρ) (expPath_pos ρ)
+  set e : ℝ → ℝ := fun t => (expPath ρ t - 1) / expPath ρ t with he_def
+  have he0 : e 0 = 1 / 2 := by simp only [he_def, expPath_zero]; norm_num
+  have he_deriv : HasDerivAt e (ρ / 2) 0 := by
+    have h1 := hasDerivAt_expPath_zero ρ
+    have h := (h1.sub_const 1).div h1 (by rw [expPath_zero]; norm_num)
+    convert h using 1
+    rw [expPath_zero]; ring
+  set K : ℝ → ℝ := fun t => J t ^ e t
+  have hK_deriv : HasDerivAt K
+      (2 * ρ * L * e 0 * I ^ (e 0 - 1) + ρ / 2 * I ^ e 0 * Real.log I) 0 :=
+    hJ_deriv.rpow he_deriv hIpos
+  -- `⟪F, F⟫ = I` and `‖F‖ = I^{1/2}`.
+  have hFF : ⟪F, F⟫_ℝ = I := by
+    rw [MeasureTheory.L2.inner_def]
+    refine integral_congr_ae ?_
+    filter_upwards [hFf] with x hx
+    simp only [hx, expPath_zero, Real.rpow_two, sq_abs, RCLike.inner_apply, conj_trivial]
+    ring
+  have hnormF : ‖F‖ = I ^ (1 / 2 : ℝ) := by
+    rw [← Real.sqrt_eq_rpow, ← hFF, real_inner_self_eq_norm_sq, Real.sqrt_sq (norm_nonneg _)]
+  -- The duality elements `Φ t = [φ_{q(t)} ∘ f]`.
+  have hΦmem : ∀ t, MemLp (fun x => dualPow (expPath ρ t) (f x)) 2 D.μ := by
+    intro t
+    refine MemLp.of_bound ((measurable_dualPow _).comp_aemeasurable
+      hfm.aemeasurable).aestronglyMeasurable (M ^ (expPath ρ t - 1)) ?_
+    filter_upwards [hM] with x hx
+    rw [Real.norm_eq_abs, abs_dualPow (one_lt_expPath ρ t)]
+    exact Real.rpow_le_rpow (abs_nonneg _) hx (by linarith [one_lt_expPath ρ t])
+  set Φ : ℝ → Lp ℝ 2 D.μ := fun t => (hΦmem t).toLp _
+  have hΦ_coe : ∀ t, (Φ t : X → ℝ) =ᵐ[D.μ] fun x => dualPow (expPath ρ t) (f x) :=
+    fun t => (hΦmem t).coeFn_toLp
+  have hinner : ∀ (u : Lp ℝ 2 D.μ) (t : ℝ),
+      ⟪u, Φ t⟫_ℝ = ∫ x, (u : X → ℝ) x * dualPow (expPath ρ t) (f x) ∂D.μ := by
+    intro u t
+    rw [MeasureTheory.L2.inner_def]
+    refine integral_congr_ae ?_
+    filter_upwards [hΦ_coe t] with x hx
+    simp only [hx, RCLike.inner_apply, conj_trivial]
+    ring
+  have hJ_inner : ∀ t, ⟪F, Φ t⟫_ℝ = J t := by
+    intro t
+    rw [hinner]
+    refine integral_congr_ae ?_
+    filter_upwards [hFf] with x hx
+    rw [hx, mul_dualPow (expPath_pos ρ t)]
+  -- `‖Φ t - F‖₂ ≤ (q(t) - 2)(1 + M³)` while `q(t) ≤ 3`.
+  have hΦ_sub : ∀ t, 0 ≤ t → expPath ρ t ≤ 3 →
+      ‖Φ t - F‖ ≤ (expPath ρ t - 2) * (1 + M ^ 3) := by
+    intro t ht ht3
+    have h2 := two_le_expPath hρ.le ht
+    have hC : 0 ≤ (expPath ρ t - 2) * (1 + M ^ 3) :=
+      mul_nonneg (by linarith) (by positivity)
+    have hb := Lp.norm_le_of_ae_bound (f := Φ t - F) hC (by
+      filter_upwards [Lp.coeFn_sub (Φ t) F, hΦ_coe t, hFf, hM] with x hsub h1 h2' hx
+      rw [hsub, Pi.sub_apply, h1, h2', Real.norm_eq_abs]
+      exact abs_dualPow_sub_le hx h2 ht3)
+    simpa [measureUnivNNReal] using hb
+  -- Slopes of the four pieces.
+  have hPF : Tendsto (fun t => ‖D.P t F - F‖) (𝓝[>] 0) (𝓝 0) :=
+    tendsto_iff_norm_sub_tendsto_zero.1
+      ((D.P_strong_cont F).mono_left (nhdsWithin_mono _ Ioi_subset_Ici_self))
+  have hq_slope : Tendsto (fun t => t⁻¹ * (expPath ρ t - 2)) (𝓝[>] 0) (𝓝 (2 * ρ)) := by
+    simpa [expPath_zero] using tendsto_slope_of_hasDerivAt (hasDerivAt_expPath_zero ρ)
+  have hq3 : ∀ᶠ t in 𝓝[>] 0, expPath ρ t ≤ 3 := by
+    have hc : Tendsto (expPath ρ) (𝓝[>] 0) (𝓝 2) := by
+      have := (hasDerivAt_expPath_zero ρ).continuousAt.tendsto
+      rw [expPath_zero] at this
+      exact this.mono_left nhdsWithin_le_nhds
+    exact hc.eventually (ge_mem_nhds (by norm_num))
+  have hB : Tendsto (fun t => t⁻¹ * ⟪D.P t F - F, Φ t - F⟫_ℝ) (𝓝[>] 0) (𝓝 0) := by
+    have hbound : Tendsto
+        (fun t => ‖D.P t F - F‖ * ((1 + M ^ 3) * (t⁻¹ * (expPath ρ t - 2))))
+        (𝓝[>] 0) (𝓝 0) := by
+      simpa using hPF.mul (tendsto_const_nhds.mul hq_slope)
+    refine squeeze_zero_norm' ?_ hbound
+    filter_upwards [hq3, self_mem_nhdsWithin] with t ht3 ht
+    have ht' : (0 : ℝ) < t := ht
+    rw [Real.norm_eq_abs, abs_mul, abs_of_pos (inv_pos.2 ht')]
+    calc t⁻¹ * |⟪D.P t F - F, Φ t - F⟫_ℝ|
+        ≤ t⁻¹ * (‖D.P t F - F‖ * ‖Φ t - F‖) :=
+          mul_le_mul_of_nonneg_left (abs_real_inner_le_norm _ _) (inv_nonneg.2 ht'.le)
+      _ ≤ t⁻¹ * (‖D.P t F - F‖ * ((expPath ρ t - 2) * (1 + M ^ 3))) := by
+          gcongr
+          exact hΦ_sub t ht'.le ht3
+      _ = ‖D.P t F - F‖ * ((1 + M ^ 3) * (t⁻¹ * (expPath ρ t - 2))) := by ring
+  have hA : Tendsto (fun t => t⁻¹ * (⟪F, D.P t F⟫_ℝ - ⟪F, D.P 0 F⟫_ℝ)) (𝓝[>] 0)
+      (𝓝 (-D.energy f f)) := by
+    have h : HasDerivWithinAt (fun t => ⟪F, D.P t F⟫_ℝ) (-D.energy f f) (Ici 0) 0 :=
+      D.energy_eq_deriv f f hf hf
+    exact tendsto_slope_of_hasDerivWithinAt h
+  have hP0 : D.P 0 F = F := by rw [D.P_zero]; rfl
+  rw [hP0] at hA
+  have hJs := tendsto_slope_of_hasDerivAt hJ_deriv
+  have hKs := tendsto_slope_of_hasDerivAt hK_deriv
+  -- `G(t) = ⟪P_t F, Φ t⟫ - ‖F‖ K(t)` and its decomposition.
+  have hK0 : ‖F‖ * K 0 = I := by
+    show ‖F‖ * I ^ e 0 = I
+    rw [he0, hnormF, ← Real.rpow_add hIpos, show (1 / 2 : ℝ) + 1 / 2 = 1 by norm_num,
+      Real.rpow_one]
+  have hdecomp : ∀ t, ⟪D.P t F, Φ t⟫_ℝ - ‖F‖ * K t =
+      ⟪D.P t F - F, Φ t - F⟫_ℝ + (⟪F, D.P t F⟫_ℝ - ⟪F, F⟫_ℝ) + (J t - J 0) -
+        ‖F‖ * (K t - K 0) := by
+    intro t
+    rw [inner_sub_left, inner_sub_right, inner_sub_right, hJ_inner, real_inner_comm F (D.P t F),
+      hFF]
+    have := hK0
+    linarith
+  have hG : Tendsto (fun t => t⁻¹ * (⟪D.P t F, Φ t⟫_ℝ - ‖F‖ * K t)) (𝓝[>] 0)
+      (𝓝 (0 + -D.energy f f + 2 * ρ * L -
+        ‖F‖ * (2 * ρ * L * e 0 * I ^ (e 0 - 1) + ρ / 2 * I ^ e 0 * Real.log I))) := by
+    have h := ((hB.add hA).add hJs).sub (hKs.const_mul ‖F‖)
+    refine h.congr fun t => ?_
+    rw [hdecomp t]; ring
+  have hGneg : ∀ t, 0 < t → ⟪D.P t F, Φ t⟫_ℝ - ‖F‖ * K t ≤ 0 := by
+    intro t ht
+    rw [hinner, sub_nonpos]
+    exact integral_mul_dualPow_le D.toMarkovSemigroup h_hyp F ht hfm hM
+  have hL := nonpos_of_tendsto_slope hG hGneg
+  -- Algebra: `‖F‖ K'(0) = ρ L + (ρ/2) I log I`.
+  rw [he0, hnormF] at hL
+  have h1 : I ^ (1 / 2 : ℝ) * I ^ (1 / 2 - 1 : ℝ) = 1 := by
+    rw [← Real.rpow_add hIpos, show (1 / 2 : ℝ) + (1 / 2 - 1) = 0 by norm_num,
+      Real.rpow_zero]
+  have h2 : I ^ (1 / 2 : ℝ) * I ^ (1 / 2 : ℝ) = I := by
+    rw [← Real.rpow_add hIpos, show (1 / 2 : ℝ) + 1 / 2 = 1 by norm_num, Real.rpow_one]
+  have hE : ρ * L - ρ / 2 * (I * Real.log I) ≤ D.energy f f := by
+    have : I ^ (1 / 2 : ℝ) * (2 * ρ * L * (1 / 2) * I ^ (1 / 2 - 1 : ℝ) +
+        ρ / 2 * I ^ (1 / 2 : ℝ) * Real.log I) = ρ * L + ρ / 2 * (I * Real.log I) := by
+      linear_combination (ρ * L) * h1 + (ρ / 2 * Real.log I) * h2
+    linarith
+  rw [div_mul_eq_mul_div, le_div_iff₀ hρ]
+  nlinarith
+
+/-- **Gross's converse for one core function.** Hypercontractivity with rate `ρ` gives
+`Ent(f²) ≤ (2/ρ) E(f, f)` for every core `f`; the degenerate case `∫ f² = 0` has zero
+entropy. -/
+theorem entropy_le_of_hypercontractive (D : DirichletMarkovSemigroup X) {ρ : ℝ}
+    (h_hyp : D.toMarkovSemigroup.IsHypercontractive ρ) {f : X → ℝ} (hf : D.IsCore f) :
+    ∫ x, f x * f x * Real.log (f x * f x) ∂D.μ -
+        (∫ x, f x * f x ∂D.μ) * Real.log (∫ x, f x * f x ∂D.μ) ≤
+      2 / ρ * D.energy f f := by
+  have hρ : 0 < ρ := h_hyp.1
+  have hsq : ∀ x, f x * f x = |f x| ^ expPath ρ 0 := by
+    intro x; rw [expPath_zero, Real.rpow_two, sq_abs, sq]
+  have hI : ∫ x, f x * f x ∂D.μ = ∫ x, |f x| ^ expPath ρ 0 ∂D.μ := by simp_rw [hsq]
+  have hL : ∫ x, f x * f x * Real.log (f x * f x) ∂D.μ =
+      2 * ∫ x, |f x| ^ expPath ρ 0 * Real.log |f x| ∂D.μ := by
+    rw [← integral_const_mul]
+    refine integral_congr_ae (ae_of_all _ fun x => ?_)
+    show f x * f x * Real.log (f x * f x) = 2 * (|f x| ^ expPath ρ 0 * Real.log |f x|)
+    rw [hsq x, expPath_zero, Real.rpow_two, Real.log_pow]; push_cast; ring
+  have hI0 : 0 ≤ ∫ x, f x * f x ∂D.μ := integral_nonneg fun x => mul_self_nonneg (f x)
+  rcases hI0.eq_or_lt with h0 | hpos
+  · -- Degenerate case: `f = 0` a.e., so both entropy terms vanish.
+    have hf2 : MemLp f 2 D.μ := D.IsCore_memLp hf
+    have hint : Integrable (fun x => f x * f x) D.μ := by
+      have := (memLp_two_iff_integrable_sq hf2.aestronglyMeasurable).1 hf2
+      simpa [sq] using this
+    have hae : (fun x => f x * f x) =ᵐ[D.μ] 0 :=
+      (integral_eq_zero_iff_of_nonneg (fun x => mul_self_nonneg (f x)) hint).1 h0.symm
+    have hent : ∫ x, f x * f x * Real.log (f x * f x) ∂D.μ = 0 := by
+      refine integral_eq_zero_of_ae ?_
+      filter_upwards [hae] with x hx
+      simp only [Pi.zero_apply] at hx ⊢
+      rw [hx, zero_mul]
+    rw [hent, ← h0]
+    simp only [zero_mul, sub_zero]
+    exact mul_nonneg (div_nonneg zero_le_two hρ.le) (D.energy_nonneg f)
+  · rw [hL, hI]
+    exact entropy_le_of_hypercontractive_of_pos D h_hyp hf (hI ▸ hpos)
+
+end GrossConverse
+
+open GrossConverse in
+/-- **Gross 1975, Theorem 2 (hypercontractivity ⇒ LSI).** Hypercontractivity
+of the bundled `L²(μ)` semigroup implies the log-Sobolev inequality for the
+bundled Dirichlet form (on the core), by differentiating the hypercontractive
+bound at `t = 0` along `q(t) = 1 + e^{2ρt}` (see the section docstring). -/
+theorem gross_hypercontractive_implies_lsi {X : Type*} [MeasurableSpace X]
     (D : DirichletMarkovSemigroup X) (ρ : ℝ)
     (h_hyp : D.toMarkovSemigroup.IsHypercontractive ρ) :
-    D.SatisfiesLogSobolev ρ
+    D.SatisfiesLogSobolev ρ := by
+  refine ⟨h_hyp.1, fun f hf => ?_⟩
+  exact entropy_le_of_hypercontractive D h_hyp hf
+
+end GrossConverseSection
 
 /-! ## H0 — hypothesis-parameterised Gross (Route A scaffold)
 
