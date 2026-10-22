@@ -10,8 +10,9 @@ concrete functions, validating that:
 A. The Mehler integral `ouSemigroup` evaluates correctly on the
    first three Hermite polynomials (constants, `x`, `x² − 1`),
    producing the textbook eigenvalues `1`, `e^{−t}`, `e^{−2t}`.
-   These proofs use only Mathlib's Gaussian moments, NOT any of the
-   four atomic axioms in `Euclidean.lean`.
+   These proofs use only Mathlib's Gaussian moments, not the
+   (formerly axiomatized, now proved) Mehler-kernel facts of
+   `Euclidean.lean`.
 
 B. A concrete bounded smooth function (`f = cos`) lies in `IsCore`,
    and the abstract `bakryEmerySpace.satisfiesPoincare` /
@@ -31,6 +32,7 @@ C. A *conditional* coherence check: assuming a `LogConcaveMeasure ℝ`
 
 import MarkovSemigroups.Instances.WorkInProgress.Euclidean
 import MarkovSemigroups.Instances.WorkInProgress.EuclideanStein
+import MarkovSemigroups.Instances.WorkInProgress.EuclideanEntropyDecay
 import MarkovSemigroups.Instances.BrascampLieb
 
 open MeasureTheory ProbabilityTheory Filter Set Real
@@ -280,9 +282,8 @@ theorem cos_isCore : IsCore Real.cos := by
   have h_d2cos : deriv (deriv Real.cos) = fun y => -Real.cos y := by
     rw [h_dcos]
     funext y
-    have h1 : HasDerivAt (fun z => -Real.sin z) (-Real.cos y) y := by
-      have := (Real.hasDerivAt_sin y).neg
-      simpa using this
+    have h1 : HasDerivAt (fun z => -Real.sin z) (-Real.cos y) y :=
+      (Real.hasDerivAt_sin y).neg
     exact h1.deriv
   refine ⟨h_cos, ?_, ?_⟩
   · rw [h_dcos]
@@ -305,7 +306,8 @@ expected pointwise gradient bound `(cos)' = -sin ⇒ (cos)'² = sin²`. -/
 theorem cos_poincare :
     DirichletSpace.variance (ds := dirichletSpace) Real.cos ≤
       ∫ x, Real.sin x ^ 2 ∂γ := by
-  have hP := bakryEmerySpace.satisfiesPoincare.2 Real.cos cos_isCore
+  have hP :=
+    (BakryEmerySpace.satisfiesPoincare (be := bakryEmerySpace)).2 Real.cos cos_isCore
   -- The Bakry-Émery energy on cos equals ∫ (cos)'² dγ = ∫ sin² dγ.
   -- bakryEmerySpace.toDirichletSpace.energy = ouEnergy by definition.
   have h_energy_eq :
@@ -336,7 +338,8 @@ theorem cos_variance_decay (t : ℝ) (ht : 0 ≤ t) :
         (ouSemigroup t Real.cos) ≤
       Real.exp (-2 * t) *
         DirichletSpace.variance (ds := dirichletSpace) Real.cos := by
-  have h := bakryEmerySpace.variance_decay Real.cos t ht cos_isCore
+  have h :=
+    BakryEmerySpace.variance_decay (be := bakryEmerySpace) Real.cos t ht cos_isCore
   -- bakryEmerySpace.ρ = 1, semigroup = ouSemigroup.
   have h_rho : bakryEmerySpace.ρ = 1 := rfl
   have h_sem : bakryEmerySpace.semigroup = ouSemigroup := rfl
@@ -371,26 +374,22 @@ theorem brascampLieb_recovers_gaussian_poincare
   rw [hμ] at hBL
   simpa using hBL
 
-/-! ### Unconditional Gaussian LogConcaveMeasure instance
+/-! ### The Gaussian potential `V(x) = x²/2`
 
-The standard Gaussian `γ = N(0,1)` on `ℝ` with potential `V(x) = x²/2`
-forms a `LogConcaveMeasure ℝ`. The decomposition:
+Constructive facts about the standard Gaussian potential: `V_gauss`
+is `C²`, its Hessian bilinear form is `v * w`, and it has uniform
+curvature `‖v‖² ≤ Hess V(v, v)`. These are exactly the curvature
+inputs of the conditional check `brascampLieb_recovers_gaussian_poincare`
+above.
 
-* **Constructive (provable from Mathlib):**
-  - `V_gauss := fun x => x²/2`, `ContDiff ℝ 2 V_gauss`.
-  - The Hessian bilinear form: `hessianBilin V_gauss x v w = v * w`.
-  - Strict convexity / uniform curvature `‖v‖² ≤ Hess V(v, v)`.
-
-* **Axiomatized (textbook Gaussian/OU theory, BGL §1.15-§1.16):**
-  - `gaussianResolvent`: the function `u = (I − L)⁻¹(f − ⟨f⟩)` with
-    `L = d²/dx² − x·d/dx` (Lax-Milgram on the OU Dirichlet form).
-  - `gaussianResolvent_ibp`: Stein's identity `Var_γ(f) = ∫ f'·u' dγ`.
-  - `gaussianResolvent_ibp_integrable`: integrand is integrable.
-  - `gaussianBochner_identity`: integrated Bochner-Weitzenböck.
-
-Net: 4 named axioms (replacing 1 monolithic existence axiom) — each
-covers one textbook ingredient with a clear BGL citation. The
-remaining LCM structure fields are filled constructively. -/
+An earlier version also built an unconditional `LogConcaveMeasure ℝ`
+instance on `γ` from four local scaffolding axioms for the OU
+resolvent (`gaussianResolvent`, `gaussianResolvent_ibp`,
+`gaussianResolvent_ibp_integrable`, `gaussianBochner_identity`). Those
+axioms were removed (2026-10-22): `gaussianResolvent` was an opaque
+function axiom and nothing outside this file used them. Gaussian
+Poincaré itself is proved axiom-free via Bakry–Émery
+(`cos_poincare` exercises it). -/
 
 /-- The Gaussian potential `V(x) = x²/2`. -/
 def V_gauss : ℝ → ℝ := fun x => x ^ 2 / 2
@@ -399,7 +398,9 @@ theorem hasDerivAt_V_gauss (x : ℝ) : HasDerivAt V_gauss x x := by
   have h₁ : HasDerivAt (fun z : ℝ => z ^ 2) (2 * x) x := by
     simpa using hasDerivAt_pow 2 x
   have h₂ := h₁.div_const 2
-  convert h₂ using 1; ring
+  convert h₂ using 1
+  · rfl
+  · ring
 
 theorem contDiff_V_gauss : ContDiff ℝ 2 V_gauss := by
   unfold V_gauss; fun_prop
@@ -443,115 +444,6 @@ theorem hV_gauss_convex (x v : ℝ) (hv : v ≠ 0) :
 theorem hV_gauss_curvature (x v : ℝ) :
     ‖v‖ ^ 2 ≤ hessianBilin V_gauss x v v := by
   rw [hessianBilin_V_gauss, Real.norm_eq_abs, sq_abs, sq]
-
-/-! ### Textbook axioms: the OU resolvent and its identities
-
-These four axioms package the standard Gaussian OU resolvent theory
-(BGL §1.15-1.16) for the `LogConcaveMeasure ℝ` fields. The full
-discharge requires:
-- Lax-Milgram on the Gaussian Dirichlet form `E(f, g) = ∫ f' g' dγ`
-  to construct the resolvent.
-- Stein's integration-by-parts identity for the Gaussian.
-- The integrated Bochner-Weitzenböck identity for the OU generator. -/
-
-/-- **OU resolvent for the Gaussian.** Sends a `C¹` function `f` to
-the solution `u` of `Lu = -(f - ⟨f⟩_γ)` where `L = d²/dx² - x·d/dx`.
-
-Reference: BGL §1.15 (Lax-Milgram on the OU Dirichlet form). -/
-axiom gaussianResolvent : (ℝ → ℝ) → (ℝ → ℝ)
-
-/-- **Resolvent integration by parts (Stein's identity).**
-`Var_γ(f) = ∫ ⟨∇f, ∇u⟩ dγ` where `u = gaussianResolvent f`.
-
-Reference: BGL §1.15; the Gaussian weighted divergence theorem. -/
-axiom gaussianResolvent_ibp (f : ℝ → ℝ) (hf : ContDiff ℝ 1 f) :
-    (∫ x, (f x) ^ 2 ∂γ) - (∫ x, f x ∂γ) ^ 2 =
-      ∫ x, (fderiv ℝ f x) (gradient (gaussianResolvent f) x) ∂γ
-
-/-- **Integrability of the resolvent IBP integrand.** -/
-axiom gaussianResolvent_ibp_integrable (f : ℝ → ℝ) (hf : ContDiff ℝ 1 f) :
-    Integrable
-      (fun x => (fderiv ℝ f x) (gradient (gaussianResolvent f) x)) γ
-
-/-- **Integrated Bochner-Weitzenböck identity (BGL §1.16).**
-
-If `Var(f) = ∫ ⟨∇f, ∇u⟩ dγ` then `Var(f) = R + ∫ Hess V(∇u, ∇u) dγ`
-for some `R ≥ 0` (where `R = ∫ ‖Hess u‖² dγ`).
-
-Reference: BGL §1.16; pointwise Bochner formula
-`½L(|∇u|²) = ⟨∇u, ∇(Lu)⟩ + ‖Hess u‖² + Hess V(∇u, ∇u)` integrated
-against `γ` with `∫ Lh dγ = 0` and `Lu = -(f - ⟨f⟩)`. -/
-axiom gaussianBochner_identity (f : ℝ → ℝ) (u : ℝ → ℝ) (hf : ContDiff ℝ 1 f)
-    (hu : (∫ x, (f x) ^ 2 ∂γ) - (∫ x, f x ∂γ) ^ 2 =
-          ∫ x, (fderiv ℝ f x) (gradient u x) ∂γ) :
-    ∃ R : ℝ, 0 ≤ R ∧
-      (∫ x, (f x) ^ 2 ∂γ) - (∫ x, f x ∂γ) ^ 2 =
-        R + ∫ x, hessianBilin V_gauss x (gradient u x) (gradient u x) ∂γ
-
-/-- **The canonical Gaussian `LogConcaveMeasure ℝ` instance.**
-Constructive: `V = x²/2` with computed Hessian; only the resolvent
-fields are populated from the four named axioms above. -/
-noncomputable def gaussianLogConcaveMeasure : LogConcaveMeasure ℝ where
-  V := V_gauss
-  hV_diff := contDiff_V_gauss
-  hV_convex := hV_gauss_convex
-  μ := γ
-  hμ_prob := inferInstance
-  resolvent := gaussianResolvent
-  resolvent_ibp := gaussianResolvent_ibp
-  resolvent_ibp_integrable := gaussianResolvent_ibp_integrable
-  bochner_identity := gaussianBochner_identity
-
-theorem gaussianLogConcaveMeasure_μ : gaussianLogConcaveMeasure.μ = γ := rfl
-
-theorem gaussianLogConcaveMeasure_V :
-    gaussianLogConcaveMeasure.V = V_gauss := rfl
-
-theorem gaussianLogConcaveMeasure_curvature (x v : ℝ) :
-    ‖v‖ ^ 2 ≤ hessianBilin gaussianLogConcaveMeasure.V x v v :=
-  hV_gauss_curvature x v
-
-/-- **Unconditional Gaussian Brascamp-Lieb / Poincaré.** PROVED from
-the single existence axiom `gaussianLogConcaveMeasure_exists`.
-
-  `Var_γ(f) ≤ ∫ ‖f'‖² dγ`
-
-for `C¹` functions `f` with square-integrable gradient under `γ` (and
-the technical integrability of `Hess V` applied to gradients of
-arbitrary functions, which the BL hypothesis requires).
-
-The variance is stated in the `DirichletSpace`-form `∫f² dγ − (∫f)²`,
-matching the abstract Bakry-Émery route. Same constant `1/ρ = 1`,
-confirming the two routes agree. -/
-theorem gaussian_brascampLieb_poincare
-    (f : ℝ → ℝ) (hf : ContDiff ℝ 1 f)
-    (hf_grad_int : Integrable (fun x => ‖fderiv ℝ f x‖ ^ 2) γ)
-    (hH_int : ∀ u : ℝ → ℝ, Integrable (fun x =>
-      hessianBilin gaussianLogConcaveMeasure.V x
-        (gradient u x) (gradient u x)) γ) :
-    (∫ x, (f x) ^ 2 ∂γ) - (∫ x, f x ∂γ) ^ 2 ≤
-      ∫ x, ‖fderiv ℝ f x‖ ^ 2 ∂γ := by
-  set m := gaussianLogConcaveMeasure with hm
-  have hμ : m.μ = γ := gaussianLogConcaveMeasure_μ
-  have hρ : ∀ x v : ℝ, ‖v‖ ^ 2 ≤ hessianBilin m.V x v v :=
-    gaussianLogConcaveMeasure_curvature
-  -- Transport integrability hypotheses to m.μ via μ = γ.
-  have hf_grad_int' : Integrable (fun x => ‖fderiv ℝ f x‖ ^ 2) m.μ := by
-    rw [hμ]; exact hf_grad_int
-  have hH_int' : ∀ u : ℝ → ℝ, Integrable
-      (fun x => hessianBilin m.V x (gradient u x) (gradient u x)) m.μ := by
-    intro u; rw [hμ]; exact hH_int u
-  -- Apply the BL Poincaré bound with ρ = 1.
-  have hBL := m.brascampLieb_poincare 1 one_pos
-    (fun x v => by simpa [one_mul] using hρ x v)
-    f hf hf_grad_int' hH_int'
-  -- m.variance f unfolds to ∫f² − (∫f)² (over m.μ = γ).
-  have h_var_eq : m.variance f = (∫ x, (f x) ^ 2 ∂γ) - (∫ x, f x ∂γ) ^ 2 := by
-    show (∫ x, (f x) ^ 2 ∂m.μ) - (∫ x, f x ∂m.μ) ^ 2 =
-      (∫ x, (f x) ^ 2 ∂γ) - (∫ x, f x ∂γ) ^ 2
-    rw [hμ]
-  rw [hμ, h_var_eq] at hBL
-  simpa using hBL
 
 end Gaussian1D
 
